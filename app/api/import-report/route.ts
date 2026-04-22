@@ -30,9 +30,13 @@ export async function POST(req: NextRequest) {
     const buffer = Buffer.from(await file.arrayBuffer());
     const wb = XLSX.read(buffer, { type: "buffer" });
     const sheetName = wb.SheetNames.includes("Report") ? "Report" : wb.SheetNames[0];
-    const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(
+    const rawRows = XLSX.utils.sheet_to_json<Record<string, unknown>>(
       wb.Sheets[sheetName],
       { defval: null },
+    );
+    // Normalizar claves: recortar espacios para evitar fallos en row["Stock Total"] etc.
+    const rows = rawRows.map(r =>
+      Object.fromEntries(Object.entries(r).map(([k, v]) => [k.trim(), v]))
     );
 
     if (rows.length === 0)

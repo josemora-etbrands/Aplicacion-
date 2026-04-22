@@ -99,6 +99,7 @@ export default function DiagnosticoTable({ diagnosticos, weekWindow }: Props) {
               <th className="text-left px-4 py-2.5 text-white/30 font-medium uppercase tracking-wider whitespace-nowrap">ACOS</th>
               <th className="text-left px-4 py-2.5 text-white/30 font-medium uppercase tracking-wider whitespace-nowrap">Meta Inicial</th>
               <th className="text-left px-4 py-2.5 text-white/30 font-medium uppercase tracking-wider whitespace-nowrap">Meta Madura</th>
+              <th className="text-center px-3 py-2.5 text-white/30 font-medium uppercase tracking-wider whitespace-nowrap">Stock</th>
               {/* Columnas de semanas cerradas */}
               {weekWindow.map(wk => {
                 const ref   = isRefCol(wk);
@@ -140,6 +141,14 @@ export default function DiagnosticoTable({ diagnosticos, weekWindow }: Props) {
                 </td>
                 <td className="px-4 py-2.5 font-mono text-white/40">{d.velocidadInicial}</td>
                 <td className="px-4 py-2.5 font-mono text-white/40">{d.velocidadMadura}</td>
+                {/* Stock */}
+                <td className={`px-3 py-2.5 text-center font-mono text-xs ${
+                  d.stock <= 0  ? "text-red-400"    :
+                  d.stock <= 5  ? "text-yellow-400" :
+                  "text-white/50"
+                }`}>
+                  {d.stock <= 0 ? <span className="text-red-400/60">0</span> : d.stock}
+                </td>
                 {/* Celdas de semanas cerradas */}
                 {weekWindow.map(wk => {
                   const slot  = d.weeks.find(w => w.year === wk.year && w.week === wk.week);
