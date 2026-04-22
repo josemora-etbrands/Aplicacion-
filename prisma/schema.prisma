@@ -1,5 +1,6 @@
 generator client {
-  provider = "prisma-client-js"
+  provider   = "prisma-client-js"
+  engineType = "library"
 }
 
 datasource db {
@@ -7,7 +8,7 @@ datasource db {
 }
 
 // ─────────────────────────────────────────────
-// Modelos de ejemplo — ajusta según tu dominio
+// Core Models — ET Brands Analysis
 // ─────────────────────────────────────────────
 
 model User {
@@ -18,4 +19,57 @@ model User {
   updatedAt DateTime @updatedAt
 
   @@map("users")
+}
+
+model Product {
+  id              String      @id @default(cuid())
+  sku             String      @unique
+  nombre          String
+  metaInicial     Float       // Umbral mínimo de ventas semanales
+  metaMadura      Float       // Objetivo de ventas en estado maduro
+  visitas         Int         @default(0)
+  ventasSemanales Float       @default(0)
+  conversion      Float       @default(0)  // Porcentaje (ej: 1.5 = 1.5%)
+  posicionSEO     Int?        // Posición en búsqueda ML
+  calificacion    Float       @default(0)  // Rating 1–5
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+  actionLogs      ActionLog[]
+
+  @@map("products")
+}
+
+enum CategoriaPalanca {
+  EXPOSICION
+  CONVERSION
+}
+
+model Palanca {
+  id          String           @id @default(cuid())
+  nombre      String
+  categoria   CategoriaPalanca
+  descripcion String
+  createdAt   DateTime         @default(now())
+  actionLogs  ActionLog[]
+
+  @@map("palancas")
+}
+
+enum EjecutadoPor {
+  USUARIO
+  IA
+}
+
+model ActionLog {
+  id           String       @id @default(cuid())
+  productId    String
+  palancaId    String
+  ejecutadoPor EjecutadoPor
+  impacto      Float?       // Delta de ventas medido post-acción
+  notas        String?
+  createdAt    DateTime     @default(now())
+  product      Product      @relation(fields: [productId], references: [id])
+  palanca      Palanca      @relation(fields: [palancaId], references: [id])
+
+  @@map("action_logs")
 }

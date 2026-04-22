@@ -1,53 +1,246 @@
-export default function Home() {
+import { prisma } from "@/lib/prisma";
+import Sidebar from "@/app/components/Sidebar";
+import MetricCard from "@/app/components/MetricCard";
+import VelocityChart from "@/app/components/VelocityChart";
+
+export const dynamic = "force-dynamic";
+
+// Umbrales de negocio ML 2026
+const UMBRAL_VISITAS  = 50;
+const UMBRAL_CONV     = 1.5;
+
+async function getDashboardData() {
+  try {
+    const [products, recentActions, totalPalancas] = await Promise.all([
+      prisma.product.findMany({ orderBy: { ventasSemanales: "asc" } }),
+      prisma.actionLog.findMany({
+        take: 8,
+        orderBy: { createdAt: "desc" },
+        include: { product: true, palanca: true },
+      }),
+      prisma.palanca.count(),
+    ]);
+    return { products, recentActions, totalPalancas };
+  } catch {
+    return { products: [], recentActions: [], totalPalancas: 0 };
+  }
+}
+
+function getStatus(p: { visitas: number; conversion: number; ventasSemanales: number; metaInicial: number }) {
+  if (p.visitas < UMBRAL_VISITAS || p.conversion < UMBRAL_CONV) return "critico";
+  if (p.ventasSemanales < p.metaInicial) return "alerta";
+  return "ok";
+}
+
+const statusConfig = {
+  critico: { label: "Crítico",  color: "bg-red-500/10 text-red-400 border-red-500/20"     },
+  alerta:  { label: "Alerta",   color: "bg-yellow-500/10 text-yellow-400 border-yellow-500/20" },
+  ok:      { label: "Óptimo",   color: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" },
+};
+
+// Demo velocity data (reemplazar con datos reales cuando haya ActionLogs)
+const velocityDemo = [
+  { label: "SKU-001",  before: 12, after: 38 },
+  { label: "SKU-047",  before: 8,  after: 31 },
+  { label: "SKU-112",  before: 21, after: 54 },
+];
+
+export default async function DashboardPage() {
+  const { products, recentActions, totalPalancas } = await getDashboardData();
+
+  const criticos  = products.filter(p => getStatus(p) === "critico").length;
+  const alertas   = products.filter(p => getStatus(p) === "alerta").length;
+  const optimos   = products.filter(p => getStatus(p) === "ok").length;
+  const saludPct  = products.length ? Math.round((optimos / products.length) * 100) : 0;
+
+  const accionesSugeridas = products
+    .filter(p => getStatus(p) === "critico")
+    .slice(0, 5)
+    .map(p => ({
+      sku:    p.sku,
+      nombre: p.nombre,
+      razon:  p.visitas < UMBRAL_VISITAS
+        ? `Visitas bajas (${p.visitas} / mín ${UMBRAL_VISITAS})`
+        : `Conversión baja (${p.conversion.toFixed(1)}% / mín ${UMBRAL_CONV}%)`,
+      palanca: p.visitas < UMBRAL_VISITAS ? "Boost de Exposición" : "Optimizar Listing",
+    }));
+
   return (
-    <main className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center p-8">
-      <div className="max-w-2xl w-full space-y-8 text-center">
+    <div className="flex h-full min-h-screen bg-[#0a0a0a]">
+      <Sidebar />
 
-        {/* Status badge */}
-        <div className="inline-flex items-center gap-2 rounded-full bg-emerald-500/10 border border-emerald-500/30 px-4 py-1.5">
-          <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
-          <span className="text-sm font-medium text-emerald-400">Stack inicializado correctamente</span>
+      <main className="flex-1 overflow-auto">
+        {/* Header */}
+        <div className="border-b border-white/5 px-8 py-5 flex items-center justify-between sticky top-0 bg-[#0a0a0a]/80 backdrop-blur-sm z-10">
+          <div>
+            <h1 className="text-lg font-semibold text-white">Dashboard de Cuenta</h1>
+            <p className="text-xs text-white/30 mt-0.5">ET Brands · Mercado Libre 2026</p>
+          </div>
+          <div className="flex items-center gap-2 text-xs bg-[#3b82f6]/10 border border-[#3b82f6]/20 px-3 py-1.5 rounded-full text-[#3b82f6]">
+            <span className="h-1.5 w-1.5 rounded-full bg-[#3b82f6] animate-pulse" />
+            Agente IA conectado
+          </div>
         </div>
 
-        {/* Heading */}
-        <div className="space-y-3">
-          <h1 className="text-5xl font-bold tracking-tight text-white">
-            Mi Aplicación
-          </h1>
-          <p className="text-lg text-slate-400">
-            Next.js · TypeScript · Tailwind CSS · Prisma · PostgreSQL
-          </p>
-        </div>
+        <div className="px-8 py-6 space-y-8">
 
-        {/* Stack cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-4">
-          {[
-            { label: "Next.js 15", desc: "App Router + TypeScript", color: "from-white/5 to-white/10", border: "border-white/10" },
-            { label: "Tailwind CSS", desc: "Utility-first styling", color: "from-sky-500/10 to-sky-400/5", border: "border-sky-500/20" },
-            { label: "Prisma ORM", desc: "PostgreSQL (Supabase)", color: "from-violet-500/10 to-violet-400/5", border: "border-violet-500/20" },
-          ].map(({ label, desc, color, border }) => (
-            <div
-              key={label}
-              className={`rounded-xl border ${border} bg-gradient-to-br ${color} p-5 text-left backdrop-blur-sm`}
-            >
-              <p className="font-semibold text-white">{label}</p>
-              <p className="mt-1 text-sm text-slate-400">{desc}</p>
+          {/* Salud de Cuenta */}
+          <section>
+            <h2 className="text-sm font-semibold text-white/50 uppercase tracking-wider mb-4">
+              Salud de la Cuenta
+            </h2>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <MetricCard label="Score de Salud"   value={`${saludPct}%`}        sub="productos en rango óptimo"   accent="blue"   trend={saludPct > 60 ? "up" : "down"} />
+              <MetricCard label="Críticos"          value={criticos}              sub={`Visitas < ${UMBRAL_VISITAS} o Conv < ${UMBRAL_CONV}%`}  accent="red"    trend="down" />
+              <MetricCard label="En Alerta"         value={alertas}               sub="bajo meta inicial"           accent="yellow" trend="neutral" />
+              <MetricCard label="Palancas Activas"  value={totalPalancas}         sub="en catálogo del sistema"     accent="green"  trend="neutral" />
             </div>
-          ))}
-        </div>
+          </section>
 
-        {/* Next steps */}
-        <div className="rounded-xl border border-slate-700 bg-slate-800/50 p-6 text-left space-y-2">
-          <p className="text-sm font-semibold text-slate-300 uppercase tracking-wider">Próximos pasos</p>
-          <ol className="space-y-1 text-sm text-slate-400 list-decimal list-inside">
-            <li>Conecta tu base de datos en <code className="text-violet-400">.env</code> → <code className="text-violet-400">DATABASE_URL</code></li>
-            <li>Ejecuta <code className="text-sky-400">npx prisma migrate dev</code> para aplicar el schema</li>
-            <li>Instala NextAuth.js o Clerk para autenticación</li>
-            <li>Crea tus primeras rutas en <code className="text-sky-400">app/</code></li>
-          </ol>
-        </div>
+          {/* Acciones sugeridas por IA */}
+          <section>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-sm font-semibold text-white/50 uppercase tracking-wider">
+                Acciones Sugeridas por IA
+              </h2>
+              <span className="text-xs text-white/20">
+                {accionesSugeridas.length} producto{accionesSugeridas.length !== 1 ? "s" : ""} crítico{accionesSugeridas.length !== 1 ? "s" : ""}
+              </span>
+            </div>
 
-      </div>
-    </main>
+            {accionesSugeridas.length === 0 ? (
+              <div className="rounded-xl border border-white/5 bg-[#111111] p-8 text-center">
+                <p className="text-emerald-400 font-medium">✓ Sin acciones urgentes</p>
+                <p className="text-white/30 text-sm mt-1">Todos los productos están sobre los umbrales críticos.</p>
+              </div>
+            ) : (
+              <div className="rounded-xl border border-white/5 bg-[#111111] overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-white/5">
+                      <th className="text-left px-5 py-3 text-xs text-white/30 font-medium uppercase tracking-wider">SKU</th>
+                      <th className="text-left px-5 py-3 text-xs text-white/30 font-medium uppercase tracking-wider">Producto</th>
+                      <th className="text-left px-5 py-3 text-xs text-white/30 font-medium uppercase tracking-wider">Diagnóstico</th>
+                      <th className="text-left px-5 py-3 text-xs text-white/30 font-medium uppercase tracking-wider">Palanca IA</th>
+                      <th className="text-right px-5 py-3 text-xs text-white/30 font-medium uppercase tracking-wider">Estado</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {accionesSugeridas.map((a, i) => (
+                      <tr key={a.sku} className={i < accionesSugeridas.length - 1 ? "border-b border-white/5" : ""}>
+                        <td className="px-5 py-3 font-mono text-[#3b82f6] text-xs">{a.sku}</td>
+                        <td className="px-5 py-3 text-white font-medium">{a.nombre}</td>
+                        <td className="px-5 py-3 text-white/50 text-xs">{a.razon}</td>
+                        <td className="px-5 py-3">
+                          <span className="text-xs bg-[#3b82f6]/10 text-[#3b82f6] border border-[#3b82f6]/20 px-2 py-0.5 rounded-full">
+                            {a.palanca}
+                          </span>
+                        </td>
+                        <td className="px-5 py-3 text-right">
+                          <span className="text-xs bg-red-500/10 text-red-400 border border-red-500/20 px-2 py-0.5 rounded-full">
+                            Crítico
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
+
+          {/* Grid inferior: Historial + Gráfica */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Últimas acciones del agente */}
+            <section>
+              <h2 className="text-sm font-semibold text-white/50 uppercase tracking-wider mb-4">
+                Últimas Acciones del Agente
+              </h2>
+              <div className="rounded-xl border border-white/5 bg-[#111111]">
+                {recentActions.length === 0 ? (
+                  <div className="p-6 text-center text-white/20 text-sm">
+                    Sin historial de acciones aún.
+                  </div>
+                ) : (
+                  <ul className="divide-y divide-white/5">
+                    {recentActions.map((log) => (
+                      <li key={log.id} className="px-4 py-3 flex items-start gap-3">
+                        <span className={`mt-0.5 h-2 w-2 rounded-full flex-shrink-0 ${log.ejecutadoPor === "IA" ? "bg-[#3b82f6]" : "bg-emerald-400"}`} />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs text-white font-medium truncate">
+                            {log.palanca.nombre} → <span className="font-mono text-[#3b82f6]">{log.product.sku}</span>
+                          </p>
+                          <p className="text-xs text-white/30 mt-0.5">
+                            {log.ejecutadoPor === "IA" ? "◈ Agente IA" : "● Usuario"}
+                            {log.impacto != null && (
+                              <span className="ml-2 text-emerald-400">+{log.impacto.toFixed(1)} ventas</span>
+                            )}
+                          </p>
+                        </div>
+                        <time className="text-xs text-white/20 flex-shrink-0">
+                          {new Date(log.createdAt).toLocaleDateString("es", { day: "2-digit", month: "short" })}
+                        </time>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </section>
+
+            {/* Velocidad de venta */}
+            <section>
+              <h2 className="text-sm font-semibold text-white/50 uppercase tracking-wider mb-4">
+                Velocidad de Venta — Antes vs Después
+              </h2>
+              <VelocityChart data={velocityDemo} />
+            </section>
+          </div>
+
+          {/* Inventario completo */}
+          {products.length > 0 && (
+            <section>
+              <h2 className="text-sm font-semibold text-white/50 uppercase tracking-wider mb-4">
+                Inventario Completo
+              </h2>
+              <div className="rounded-xl border border-white/5 bg-[#111111] overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-white/5">
+                      {["SKU", "Nombre", "Visitas", "Conversión", "Ventas/Sem", "SEO Pos.", "Rating", "Estado"].map(h => (
+                        <th key={h} className="text-left px-4 py-3 text-xs text-white/30 font-medium uppercase tracking-wider">{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {products.map((p, i) => {
+                      const status = getStatus(p);
+                      const s = statusConfig[status];
+                      return (
+                        <tr key={p.id} className={i < products.length - 1 ? "border-b border-white/5 hover:bg-white/2" : "hover:bg-white/2"}>
+                          <td className="px-4 py-3 font-mono text-[#3b82f6] text-xs">{p.sku}</td>
+                          <td className="px-4 py-3 text-white text-xs font-medium max-w-[160px] truncate">{p.nombre}</td>
+                          <td className={`px-4 py-3 text-xs font-mono ${p.visitas < UMBRAL_VISITAS ? "text-red-400" : "text-white/60"}`}>
+                            {p.visitas.toLocaleString()}
+                          </td>
+                          <td className={`px-4 py-3 text-xs font-mono ${p.conversion < UMBRAL_CONV ? "text-red-400" : "text-white/60"}`}>
+                            {p.conversion.toFixed(1)}%
+                          </td>
+                          <td className="px-4 py-3 text-xs text-white/60 font-mono">{p.ventasSemanales.toFixed(1)}</td>
+                          <td className="px-4 py-3 text-xs text-white/60 font-mono">{p.posicionSEO ?? "—"}</td>
+                          <td className="px-4 py-3 text-xs text-white/60">{"★".repeat(Math.round(p.calificacion))}{p.calificacion.toFixed(1)}</td>
+                          <td className="px-4 py-3">
+                            <span className={`text-xs border px-2 py-0.5 rounded-full ${s.color}`}>{s.label}</span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          )}
+        </div>
+      </main>
+    </div>
   );
 }
