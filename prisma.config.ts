@@ -1,18 +1,23 @@
 import "dotenv/config";
 import { defineConfig } from "prisma/config";
 
-function withSsl(url: string | undefined): string {
-  if (!url) throw new Error("Missing database URL env var");
+function withSsl(url: string | undefined): string | undefined {
+  if (!url) return undefined;
   return url.includes("sslmode") ? url : url + (url.includes("?") ? "&" : "?") + "sslmode=require";
 }
+
+const dbUrl = withSsl(process.env["DATABASE_URL"]);
+const directUrl = withSsl(process.env["DIRECT_URL"]);
 
 export default defineConfig({
   schema: "prisma/schema.prisma",
   migrations: {
     path: "prisma/migrations",
   },
-  datasource: {
-    url: withSsl(process.env["DATABASE_URL"]),
-    directUrl: withSsl(process.env["DIRECT_URL"]),
-  },
+  ...(dbUrl && {
+    datasource: {
+      url: dbUrl,
+      ...(directUrl && { directUrl }),
+    },
+  }),
 });
