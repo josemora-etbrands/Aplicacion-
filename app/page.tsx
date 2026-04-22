@@ -4,7 +4,7 @@ import MetricCard from "@/app/components/MetricCard";
 import VelocityChart from "@/app/components/VelocityChart";
 import DiagnosticoTable from "@/app/components/DiagnosticoTable";
 import { diagnosticar } from "@/app/lib/diagnostico";
-import { lastNWeeks, type WeekKey } from "@/app/lib/weekUtils";
+import { lastNWeeks, assignYears, currentISOWeek, type WeekKey } from "@/app/lib/weekUtils";
 
 export const dynamic = "force-dynamic";
 
@@ -36,22 +36,18 @@ export default async function DashboardPage() {
   }
   const hasWeeklySales = allWeekKeys.length > 0;
 
-  const fallbackWindow: WeekKey[] = [
-    { year: 2026, week: 13 }, { year: 2026, week: 14 }, { year: 2026, week: 15 },
-    { year: 2026, week: 16 }, { year: 2026, week: 17 },
-  ];
-  const weekWindow = hasWeeklySales ? lastNWeeks(allWeekKeys, 5) : fallbackWindow;
+  // Dynamic fallback: assign years to legacy w13-w17 columns based on current ISO week
+  const { year: refYear, week: refWeek } = currentISOWeek();
+  const legacyWeekKeys = assignYears([13, 14, 15, 16, 17], refYear, refWeek);
+  const weekWindow = hasWeeklySales ? lastNWeeks(allWeekKeys, 5) : legacyWeekKeys;
 
   const diagnosticos = products.map(p => {
     const weekHistory = p.weeklySales.length > 0
       ? p.weeklySales.map(ws => ({ year: ws.year, week: ws.week, value: ws.value }))
-      : [
-          { year: 2026, week: 13, value: p.w13 },
-          { year: 2026, week: 14, value: p.w14 },
-          { year: 2026, week: 15, value: p.w15 },
-          { year: 2026, week: 16, value: p.w16 },
-          { year: 2026, week: 17, value: p.w17 },
-        ];
+      : legacyWeekKeys.map((wk, i) => ({
+          ...wk,
+          value: [p.w13, p.w14, p.w15, p.w16, p.w17][i] ?? 0,
+        }));
     return diagnosticar({
       sku: p.sku, nombre: p.nombre,
       weekHistory,

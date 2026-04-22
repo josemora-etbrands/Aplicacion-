@@ -14,7 +14,7 @@ interface ImportResult {
 
 const REPORT_META: Record<ReportType, { label: string; color: string; fields: string }> = {
   PROFIT:    { label: "ProfitGuard — Productos",         color: "text-emerald-400", fields: "Margen %, Publicidad, Ventas, Ingresos" },
-  VELOCIDAD: { label: "ProfitGuard — Velocidad de Ventas", color: "text-[#3b82f6]",  fields: "W13, W14, W15, W16, W17, Stock Total" },
+  VELOCIDAD: { label: "ProfitGuard — Velocidad de Ventas", color: "text-[#3b82f6]",  fields: "Semanas dinámicas (W##), Stock Total" },
 };
 
 export default function ImportarPage() {
@@ -184,7 +184,7 @@ export default function ImportarPage() {
             <ol className="space-y-2 text-white/40 text-xs list-decimal list-inside">
               <li>Abre ProfitGuard y selecciona el rango de fechas deseado</li>
               <li>En <span className="text-white/60">Productos</span>: exporta como Excel (.xlsx) — detectado por columnas <span className="text-emerald-400 font-mono">Margen %</span> y <span className="text-emerald-400 font-mono">Publicidad</span></li>
-              <li>En <span className="text-white/60">Velocidad de Ventas</span>: exporta como Excel (.xlsx) — detectado por columnas <span className="text-[#3b82f6] font-mono">W16</span>, <span className="text-[#3b82f6] font-mono">W17</span> y <span className="text-[#3b82f6] font-mono">Stock Total</span></li>
+              <li>En <span className="text-white/60">Velocidad de Ventas</span>: exporta como Excel (.xlsx) — detectado por columnas de semana <span className="text-[#3b82f6] font-mono">W##</span> y <span className="text-[#3b82f6] font-mono">Stock Total</span> (la ventana se ajusta automáticamente)</li>
               <li>Arrastra el archivo aquí — el sistema detecta el tipo automáticamente</li>
             </ol>
           </div>
