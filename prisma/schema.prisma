@@ -37,13 +37,6 @@ model Product {
   ventas           Float       @default(0)   // Ingresos netos por ventas CLP
   ingresos         Float       @default(0)   // Ingresos brutos CLP
 
-  // Ventas semanales últimas 5 semanas (W13–W17)
-  w13              Float       @default(0)
-  w14              Float       @default(0)
-  w15              Float       @default(0)
-  w16              Float       @default(0)
-  w17              Float       @default(0)   // Última semana disponible
-
   // Inventario
   stock            Int         @default(0)
   nota             String?

@@ -115,19 +115,6 @@ export async function POST(req: NextRequest) {
             });
           }
 
-          // Mantener w13–w17 sincronizados para compatibilidad (usando las últimas semanas conocidas)
-          const lastCols = weekCols.slice(-5);
-          const wMap: Record<string, number> = {};
-          for (const c of lastCols) wMap[`w${c.week}`] = num(row[c.header]);
-          // Actualizar solo los campos que existen en el schema (w13-w17)
-          const compat: Record<string, number> = {};
-          for (const wn of [13, 14, 15, 16, 17]) {
-            const match = weekCols.find(c => c.week === wn);
-            if (match) compat[`w${wn}`] = num(row[match.header]);
-          }
-          if (Object.keys(compat).length > 0) {
-            await prisma.product.update({ where: { sku }, data: compat });
-          }
         }
       } catch (err) {
         if (errors.length < 5) errors.push(`SKU ${sku}: ${String(err)}`);

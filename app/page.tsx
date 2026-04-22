@@ -4,7 +4,7 @@ import MetricCard from "@/app/components/MetricCard";
 import VelocityChart from "@/app/components/VelocityChart";
 import DiagnosticoTable from "@/app/components/DiagnosticoTable";
 import { diagnosticar } from "@/app/lib/diagnostico";
-import { lastNWeeks, assignYears, currentISOWeek, type WeekKey } from "@/app/lib/weekUtils";
+import { lastNWeeks, type WeekKey } from "@/app/lib/weekUtils";
 
 export const dynamic = "force-dynamic";
 
@@ -12,7 +12,7 @@ async function getDashboardData() {
   try {
     const [products, recentActions] = await Promise.all([
       prisma.product.findMany({
-        orderBy: [{ w17: "asc" }],
+        orderBy: [{ sku: "asc" }],
         include: { weeklySales: { orderBy: [{ year: "asc" }, { week: "asc" }] } },
       }),
       prisma.actionLog.findMany({
@@ -34,20 +34,10 @@ export default async function DashboardPage() {
   for (const p of products) {
     for (const ws of p.weeklySales) allWeekKeys.push({ year: ws.year, week: ws.week });
   }
-  const hasWeeklySales = allWeekKeys.length > 0;
-
-  // Dynamic fallback: assign years to legacy w13-w17 columns based on current ISO week
-  const { year: refYear, week: refWeek } = currentISOWeek();
-  const legacyWeekKeys = assignYears([13, 14, 15, 16, 17], refYear, refWeek);
-  const weekWindow = hasWeeklySales ? lastNWeeks(allWeekKeys, 5) : legacyWeekKeys;
+  const weekWindow = lastNWeeks(allWeekKeys, 5);
 
   const diagnosticos = products.map(p => {
-    const weekHistory = p.weeklySales.length > 0
-      ? p.weeklySales.map(ws => ({ year: ws.year, week: ws.week, value: ws.value }))
-      : legacyWeekKeys.map((wk, i) => ({
-          ...wk,
-          value: [p.w13, p.w14, p.w15, p.w16, p.w17][i] ?? 0,
-        }));
+    const weekHistory = p.weeklySales.map(ws => ({ year: ws.year, week: ws.week, value: ws.value }));
     return diagnosticar({
       sku: p.sku, nombre: p.nombre,
       weekHistory,
