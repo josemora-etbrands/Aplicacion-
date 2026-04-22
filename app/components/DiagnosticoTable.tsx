@@ -12,11 +12,11 @@ const barColor: Record<string, string> = {
   VERDE: "bg-emerald-500", AMARILLO: "bg-yellow-500", ROJO: "bg-red-500",
 };
 
-// Color de cada celda de semana según su valor vs metas del producto
-function weekColor(value: number, d: ProductDiagnostico): string {
-  if (value === 0)                         return "text-white/20";
-  if (value >= d.velocidadMadura)          return "text-emerald-400";
-  if (value >= d.velocidadInicial)         return "text-yellow-400";
+/** Color de una celda de semana según valor vs metas del producto */
+function weekCellColor(value: number, d: ProductDiagnostico): string {
+  if (value === 0)                return "text-white/20";
+  if (value >= d.velocidadMadura) return "text-emerald-400";
+  if (value >= d.velocidadInicial)return "text-yellow-400";
   return "text-red-400";
 }
 
@@ -33,14 +33,6 @@ export default function DiagnosticoTable({ diagnosticos }: Props) {
     return true;
   });
 
-  const weeks: { key: keyof ProductDiagnostico; label: string }[] = [
-    { key: "w13", label: "W13" },
-    { key: "w14", label: "W14" },
-    { key: "w15", label: "W15" },
-    { key: "w16", label: "W16" },
-    { key: "w17", label: "W17" },
-  ];
-
   return (
     <div className="rounded-xl border border-white/5 bg-[#111111] overflow-hidden">
       {/* Filters */}
@@ -54,16 +46,16 @@ export default function DiagnosticoTable({ diagnosticos }: Props) {
           <button key={f} onClick={() => setFilter(f)}
             className={`text-xs px-3 py-1.5 rounded-lg border transition-colors ${
               filter === f
-                ? f === "ROJO"    ? "bg-red-500/20 text-red-400 border-red-500/30"
-                : f === "AMARILLO"? "bg-yellow-500/20 text-yellow-400 border-yellow-500/30"
-                : f === "VERDE"   ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/30"
+                ? f === "ROJO"     ? "bg-red-500/20 text-red-400 border-red-500/30"
+                : f === "AMARILLO" ? "bg-yellow-500/20 text-yellow-400 border-yellow-500/30"
+                : f === "VERDE"    ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/30"
                 : "bg-[#3b82f6]/20 text-[#3b82f6] border-[#3b82f6]/30"
                 : "text-white/30 border-white/10 hover:border-white/20"
             }`}>
-            {f === "ALL"     ? `Todos (${diagnosticos.length})`
-            : f === "ROJO"   ? `🔴 ${diagnosticos.filter(d => d.status === "ROJO").length}`
+            {f === "ALL"      ? `Todos (${diagnosticos.length})`
+            : f === "ROJO"    ? `🔴 ${diagnosticos.filter(d => d.status === "ROJO").length}`
             : f === "AMARILLO"? `🟡 ${diagnosticos.filter(d => d.status === "AMARILLO").length}`
-            :                  `🟢 ${diagnosticos.filter(d => d.status === "VERDE").length}`}
+            :                   `🟢 ${diagnosticos.filter(d => d.status === "VERDE").length}`}
           </button>
         ))}
         <span className="text-xs text-white/20 ml-auto">{visible.length} SKUs</span>
@@ -73,36 +65,32 @@ export default function DiagnosticoTable({ diagnosticos }: Props) {
       <div className="overflow-x-auto">
         <table className="w-full text-xs">
           <thead>
-            {/* Grupo de encabezados: columnas principales + bloque Historial */}
             <tr className="border-b border-white/5">
-              <th className="text-left px-4 py-2 text-white/30 font-medium uppercase tracking-wider whitespace-nowrap" rowSpan={2}>SKU</th>
-              <th className="text-left px-4 py-2 text-white/30 font-medium uppercase tracking-wider whitespace-nowrap" rowSpan={2}>Producto</th>
-              <th className="text-left px-4 py-2 text-white/30 font-medium uppercase tracking-wider whitespace-nowrap" rowSpan={2}>Últ. Semana</th>
-              <th className="text-left px-4 py-2 text-white/30 font-medium uppercase tracking-wider whitespace-nowrap" rowSpan={2}>Meta Inicial</th>
-              <th className="text-left px-4 py-2 text-white/30 font-medium uppercase tracking-wider whitespace-nowrap" rowSpan={2}>Meta Madura</th>
-              <th className="text-left px-4 py-2 text-white/30 font-medium uppercase tracking-wider whitespace-nowrap" rowSpan={2}>% Madura</th>
-              <th className="text-left px-4 py-2 text-white/30 font-medium uppercase tracking-wider whitespace-nowrap" rowSpan={2}>Margen</th>
-              <th className="text-left px-4 py-2 text-white/30 font-medium uppercase tracking-wider whitespace-nowrap" rowSpan={2}>ACOS</th>
-              <th className="text-left px-4 py-2 text-white/30 font-medium uppercase tracking-wider whitespace-nowrap" rowSpan={2}>Stock</th>
-              <th className="text-left px-4 py-2 text-white/30 font-medium uppercase tracking-wider whitespace-nowrap" rowSpan={2}>Estado</th>
-              <th className="text-left px-4 py-2 text-white/30 font-medium uppercase tracking-wider whitespace-nowrap" rowSpan={2}>Palancas IA</th>
-              {/* Bloque Historial */}
-              <th
-                colSpan={5}
-                className="text-center px-3 py-1.5 text-white/20 font-medium uppercase tracking-widest text-[10px] bg-white/[0.025] border-l border-white/5"
-              >
-                ── Historial de Semanas ──
-              </th>
-            </tr>
-            <tr className="border-b border-white/5">
-              {weeks.map(w => (
-                <th
-                  key={w.label}
-                  className={`text-center px-3 py-1.5 text-white/30 font-medium uppercase tracking-wider whitespace-nowrap bg-white/[0.025] ${w.label === "W13" ? "border-l border-white/5" : ""}`}
-                >
-                  {w.label}
+              {/* Columnas fijas */}
+              <th className="text-left px-4 py-2.5 text-white/30 font-medium uppercase tracking-wider whitespace-nowrap">SKU</th>
+              <th className="text-left px-4 py-2.5 text-white/30 font-medium uppercase tracking-wider whitespace-nowrap">Producto</th>
+
+              {/* Historial W13–W16 (referencia secundaria) */}
+              {(["W13","W14","W15","W16"] as const).map(w => (
+                <th key={w} className="text-center px-3 py-2.5 text-white/20 font-medium uppercase tracking-wider whitespace-nowrap bg-white/[0.02]">
+                  {w}
                 </th>
               ))}
+
+              {/* W17 — referencia del semáforo, destacada */}
+              <th className="text-center px-4 py-2.5 text-white/70 font-semibold uppercase tracking-wider whitespace-nowrap bg-white/[0.04] border-x border-white/10">
+                W17 ◈
+              </th>
+
+              {/* Columnas de análisis */}
+              <th className="text-left px-4 py-2.5 text-white/30 font-medium uppercase tracking-wider whitespace-nowrap">Meta Inicial</th>
+              <th className="text-left px-4 py-2.5 text-white/30 font-medium uppercase tracking-wider whitespace-nowrap">Meta Madura</th>
+              <th className="text-left px-4 py-2.5 text-white/30 font-medium uppercase tracking-wider whitespace-nowrap">% Madura</th>
+              <th className="text-left px-4 py-2.5 text-white/30 font-medium uppercase tracking-wider whitespace-nowrap">Margen</th>
+              <th className="text-left px-4 py-2.5 text-white/30 font-medium uppercase tracking-wider whitespace-nowrap">ACOS</th>
+              <th className="text-left px-4 py-2.5 text-white/30 font-medium uppercase tracking-wider whitespace-nowrap">Stock</th>
+              <th className="text-left px-4 py-2.5 text-white/30 font-medium uppercase tracking-wider whitespace-nowrap">Estado</th>
+              <th className="text-left px-4 py-2.5 text-white/30 font-medium uppercase tracking-wider whitespace-nowrap">Palancas IA</th>
             </tr>
           </thead>
           <tbody>
@@ -115,25 +103,30 @@ export default function DiagnosticoTable({ diagnosticos }: Props) {
                 <td className="px-4 py-2.5">
                   <span className="font-mono text-[#3b82f6]">{d.sku}</span>
                 </td>
+
                 {/* Nombre */}
                 <td className="px-4 py-2.5 max-w-[180px]">
                   <span className="text-white/80 block truncate">{d.nombre}</span>
                 </td>
-                {/* Última semana */}
-                <td className="px-4 py-2.5">
-                  <div className="flex items-center gap-2">
-                    <span className={`font-mono font-semibold ${
-                      d.status === "ROJO" ? "text-red-400" : d.status === "AMARILLO" ? "text-yellow-400" : "text-emerald-400"
-                    }`}>
-                      {d.ultimaSemana}
-                    </span>
-                    <span className="text-white/20">{d.semanaRef}</span>
-                  </div>
+
+                {/* W13–W16: historial secundario, tono atenuado */}
+                {([d.w13, d.w14, d.w15, d.w16] as number[]).map((val, idx) => (
+                  <td key={idx} className={`px-3 py-2.5 text-center font-mono bg-white/[0.02] ${weekCellColor(val, d)}`}>
+                    {val === 0 ? <span className="text-white/15">—</span> : val}
+                  </td>
+                ))}
+
+                {/* W17: referencia del semáforo — negrita y fondo más brillante */}
+                <td className={`px-4 py-2.5 text-center font-mono font-bold bg-white/[0.04] border-x border-white/10 ${weekCellColor(d.w17, d)}`}>
+                  {d.w17 === 0 ? <span className="text-white/25 font-normal">—</span> : d.w17}
                 </td>
+
                 {/* Meta Inicial */}
                 <td className="px-4 py-2.5 font-mono text-white/40">{d.velocidadInicial}</td>
+
                 {/* Meta Madura */}
                 <td className="px-4 py-2.5 font-mono text-white/40">{d.velocidadMadura}</td>
+
                 {/* % Madura */}
                 <td className="px-4 py-2.5">
                   <div className="flex items-center gap-2 min-w-[80px]">
@@ -150,24 +143,29 @@ export default function DiagnosticoTable({ diagnosticos }: Props) {
                     </span>
                   </div>
                 </td>
+
                 {/* Margen */}
                 <td className="px-4 py-2.5 font-mono text-white/60">{d.margenPct.toFixed(1)}%</td>
+
                 {/* ACOS */}
                 <td className={`px-4 py-2.5 font-mono ${
                   d.acos > 0.15 ? "text-red-400" : d.acos > 0.08 ? "text-yellow-400" : "text-white/60"
                 }`}>
                   {d.acosDisplay}
                 </td>
+
                 {/* Stock */}
                 <td className={`px-4 py-2.5 font-mono ${d.stock === 0 ? "text-red-400" : "text-white/60"}`}>
                   {d.stock === 0 ? "Sin stock" : d.stock}
                 </td>
+
                 {/* Estado */}
                 <td className="px-4 py-2.5">
                   <span className={`border px-2 py-0.5 rounded-full text-xs font-medium ${statusStyle[d.status]}`}>
                     {d.statusLabel}
                   </span>
                 </td>
+
                 {/* Palancas IA */}
                 <td className="px-4 py-2.5">
                   <div className="flex flex-wrap gap-1 max-w-[220px]">
@@ -181,18 +179,6 @@ export default function DiagnosticoTable({ diagnosticos }: Props) {
                     )}
                   </div>
                 </td>
-                {/* W13–W17 — bloque historial con fondo diferenciado */}
-                {weeks.map(w => {
-                  const val = d[w.key] as number;
-                  return (
-                    <td
-                      key={w.key}
-                      className={`px-3 py-2.5 text-center font-mono bg-white/[0.025] ${w.key === "w13" ? "border-l border-white/5" : ""} ${weekColor(val, d)}`}
-                    >
-                      {val === 0 ? <span className="text-white/15">—</span> : val}
-                    </td>
-                  );
-                })}
               </tr>
             ))}
           </tbody>
