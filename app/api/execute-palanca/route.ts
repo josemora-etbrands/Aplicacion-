@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { diagnosticar } from "@/app/lib/diagnostico";
 
 interface ExecutePayload {
   sku:          string;
-  palancaId:    string;
+  palancaNombre: string;
   ejecutadoPor: "USUARIO" | "IA";
   impacto?:     number;
   notas?:       string;
@@ -12,58 +13,36 @@ interface ExecutePayload {
 export async function POST(req: NextRequest) {
   try {
     const body = (await req.json()) as ExecutePayload;
-    const { sku, palancaId, ejecutadoPor, impacto, notas } = body;
+    const { sku, palancaNombre, ejecutadoPor, impacto, notas } = body;
 
-    // Validación
-    if (!sku || !palancaId || !ejecutadoPor) {
+    if (!sku || !palancaNombre || !ejecutadoPor) {
       return NextResponse.json(
-        { error: "Campos requeridos: sku, palancaId, ejecutadoPor" },
-        { status: 400 }
-      );
-    }
-    if (!["USUARIO", "IA"].includes(ejecutadoPor)) {
-      return NextResponse.json(
-        { error: "ejecutadoPor debe ser USUARIO o IA" },
+        { error: "Campos requeridos: sku, palancaNombre, ejecutadoPor" },
         { status: 400 }
       );
     }
 
-    // Buscar producto
     const product = await prisma.product.findUnique({ where: { sku } });
-    if (!product) {
-      return NextResponse.json({ error: `SKU no encontrado: ${sku}` }, { status: 404 });
-    }
+    if (!product) return NextResponse.json({ error: `SKU no encontrado: ${sku}` }, { status: 404 });
 
-    // Buscar palanca
-    const palanca = await prisma.palanca.findUnique({ where: { id: palancaId } });
-    if (!palanca) {
-      return NextResponse.json({ error: `Palanca no encontrada: ${palancaId}` }, { status: 404 });
-    }
+    const palanca = await prisma.palanca.findFirst({ where: { nombre: { contains: palancaNombre } } });
+    if (!palanca) return NextResponse.json({ error: `Palanca no encontrada: ${palancaNombre}` }, { status: 404 });
 
-    // Registrar acción
     const actionLog = await prisma.actionLog.create({
-      data: {
-        productId:    product.id,
-        palancaId:    palanca.id,
-        ejecutadoPor,
-        impacto:      impacto ?? null,
-        notas:        notas   ?? null,
-      },
+      data: { productId: product.id, palancaId: palanca.id, ejecutadoPor, impacto: impacto ?? null, notas: notas ?? null },
       include: { product: true, palanca: true },
     });
 
+    const diagnostico = diagnosticar(product);
+
     return NextResponse.json({
-      success: true,
-      message: `Palanca "${palanca.nombre}" activada en SKU ${sku} por ${ejecutadoPor}`,
+      success:     true,
+      message:     `Palanca "${palanca.nombre}" activada en SKU ${sku} por ${ejecutadoPor}`,
+      diagnostico: { status: diagnostico.status, ultimaSemana: diagnostico.ultimaSemana, acosDisplay: diagnostico.acosDisplay },
       actionLog: {
-        id:           actionLog.id,
-        sku:          actionLog.product.sku,
-        palanca:      actionLog.palanca.nombre,
-        categoria:    actionLog.palanca.categoria,
-        ejecutadoPor: actionLog.ejecutadoPor,
-        impacto:      actionLog.impacto,
-        notas:        actionLog.notas,
-        timestamp:    actionLog.createdAt,
+        id: actionLog.id, sku, palanca: palanca.nombre,
+        categoria: palanca.categoria, ejecutadoPor, impacto, notas,
+        timestamp: actionLog.createdAt,
       },
     }, { status: 201 });
 

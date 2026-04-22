@@ -8,7 +8,7 @@ datasource db {
 }
 
 // ─────────────────────────────────────────────
-// Core Models — ET Brands Analysis
+// ET Brands Analysis — Schema v2
 // ─────────────────────────────────────────────
 
 model User {
@@ -17,24 +17,43 @@ model User {
   name      String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-
   @@map("users")
 }
 
 model Product {
-  id              String      @id @default(cuid())
-  sku             String      @unique
-  nombre          String
-  metaInicial     Float       // Umbral mínimo de ventas semanales
-  metaMadura      Float       // Objetivo de ventas en estado maduro
-  visitas         Int         @default(0)
-  ventasSemanales Float       @default(0)
-  conversion      Float       @default(0)  // Porcentaje (ej: 1.5 = 1.5%)
-  posicionSEO     Int?        // Posición en búsqueda ML
-  calificacion    Float       @default(0)  // Rating 1–5
-  createdAt       DateTime    @default(now())
-  updatedAt       DateTime    @updatedAt
-  actionLogs      ActionLog[]
+  id               String      @id @default(cuid())
+  sku              String      @unique
+  nombre           String
+
+  // Metas de velocidad (del Excel "Revisión velocidades")
+  velocidadInicial Float       // Meta 1: venta semanal mínima esperada
+  velocidadMadura  Float       // Meta 2: venta semanal en estado maduro
+
+  // Métricas financieras
+  margenPct        Float       @default(0)   // Margen % (ej: 33.7)
+  acos             Float       @default(0)   // Publicidad/Ingresos ratio (ej: 0.049)
+  precioVenta      Float       @default(0)   // Precio de venta ML calculado
+
+  // Ventas semanales últimas 5 semanas (W13–W17)
+  w13              Float       @default(0)
+  w14              Float       @default(0)
+  w15              Float       @default(0)
+  w16              Float       @default(0)
+  w17              Float       @default(0)   // Última semana disponible
+
+  // Inventario
+  stock            Int         @default(0)
+  nota             String?
+
+  // Métricas ML opcionales
+  visitas          Int         @default(0)
+  conversion       Float       @default(0)
+  posicionSEO      Int?
+  calificacion     Float       @default(0)
+
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+  actionLogs       ActionLog[]
 
   @@map("products")
 }
@@ -46,12 +65,11 @@ enum CategoriaPalanca {
 
 model Palanca {
   id          String           @id @default(cuid())
-  nombre      String
+  nombre      String           @unique
   categoria   CategoriaPalanca
   descripcion String
   createdAt   DateTime         @default(now())
   actionLogs  ActionLog[]
-
   @@map("palancas")
 }
 
@@ -65,11 +83,10 @@ model ActionLog {
   productId    String
   palancaId    String
   ejecutadoPor EjecutadoPor
-  impacto      Float?       // Delta de ventas medido post-acción
+  impacto      Float?
   notas        String?
   createdAt    DateTime     @default(now())
   product      Product      @relation(fields: [productId], references: [id])
   palanca      Palanca      @relation(fields: [palancaId], references: [id])
-
   @@map("action_logs")
 }
