@@ -70,11 +70,14 @@ export async function POST(req: NextRequest) {
 
       try {
         if (reportType === "PROFIT") {
+          const publicidad = num(row["Publicidad"]);
+          const ingresos   = num(row["Ingresos"]);
           const data = {
             margenPct:  num(row["Margen %"]),
-            publicidad: num(row["Publicidad"]),
+            publicidad,
             ventas:     num(row["Ventas"]),
-            ingresos:   num(row["Ingresos"]),
+            ingresos,
+            acos:       ingresos > 0 ? publicidad / ingresos : 0,
           };
           const nombre  = row["Nombre"]?.toString().trim() ?? sku;
           const existing = await prisma.product.findUnique({ where: { sku } });

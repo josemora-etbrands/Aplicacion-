@@ -65,3 +65,16 @@ export function lastNWeeks(weeks: WeekKey[], n: number): WeekKey[] {
   for (const w of weeks) unique.set(`${w.year}-${w.week}`, w);
   return sortWeeks([...unique.values()]).slice(-n);
 }
+
+/**
+ * Retorna las últimas N semanas CERRADAS.
+ * Excluye la semana más reciente (en curso) y toma las N anteriores.
+ * Si solo hay 1 semana en total, la devuelve como única (es la cerrada).
+ */
+export function closedWeekWindow(weeks: WeekKey[], n: number): WeekKey[] {
+  const unique = new Map<string, WeekKey>();
+  for (const w of weeks) unique.set(`${w.year}-${w.week}`, w);
+  const sorted = sortWeeks([...unique.values()]);
+  const closed = sorted.length > 1 ? sorted.slice(0, -1) : sorted;
+  return closed.slice(-n);
+}

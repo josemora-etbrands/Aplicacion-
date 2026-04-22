@@ -4,7 +4,7 @@ import MetricCard from "@/app/components/MetricCard";
 import VelocityChart from "@/app/components/VelocityChart";
 import DiagnosticoTable from "@/app/components/DiagnosticoTable";
 import { diagnosticar } from "@/app/lib/diagnostico";
-import { lastNWeeks, type WeekKey } from "@/app/lib/weekUtils";
+import { closedWeekWindow, type WeekKey } from "@/app/lib/weekUtils";
 
 export const dynamic = "force-dynamic";
 
@@ -34,7 +34,8 @@ export default async function DashboardPage() {
   for (const p of products) {
     for (const ws of p.weeklySales) allWeekKeys.push({ year: ws.year, week: ws.week });
   }
-  const weekWindow = lastNWeeks(allWeekKeys, 5);
+  // Últimas 5 semanas CERRADAS (excluye la semana en curso más reciente)
+  const weekWindow = closedWeekWindow(allWeekKeys, 5);
 
   const diagnosticos = products.map(p => {
     const weekHistory = p.weeklySales.map(ws => ({ year: ws.year, week: ws.week, value: ws.value }));
