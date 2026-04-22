@@ -1,61 +1,80 @@
 /**
  * Motor de Diagnóstico — ET Brands Analysis
- * Lógica de negocio basada en la pestaña "Revisión velocidades" del Excel
- * Semáforo basado en W16 (última semana cerrada). W17 = semana en curso.
+ *
+ * Semáforo dinámico:
+ *   - Usa la PENÚLTIMA semana del historial (última cerrada) para el semáforo y palancas.
+ *   - La ÚLTIMA semana se muestra como "en curso" (sin peso en el diagnóstico).
+ *   - El historial puede ser cualquier ventana de semanas (cambio de año incluido).
  */
 
+import { weekLabel, weekOrder, type WeekKey } from "./weekUtils";
+
 export type StatusColor = "VERDE" | "AMARILLO" | "ROJO";
+
+/** Una celda del historial de semanas */
+export interface WeekSlot {
+  year:      number;
+  week:      number;
+  label:     string;   // "W17"
+  value:     number;
+  isClosed:  boolean;  // penúltima = base del semáforo
+  isCurrent: boolean;  // última = en curso, solo visual
+}
 
 export interface ProductDiagnostico {
   sku:              string;
   nombre:           string;
-  ultimaSemana:     number;   // valor de W16 (semana cerrada)
-  semanaRef:        string;   // siempre "W16"
   velocidadInicial: number;
   velocidadMadura:  number;
   margenPct:        number;
   acos:             number;
-  acosDisplay:      string;   // "4.9%"
-  publicidad:       number;   // gasto publicidad CLP
-  ventas:           number;   // ingresos netos CLP
-  ingresos:         number;   // ingresos brutos CLP
+  acosDisplay:      string;
+  publicidad:       number;
+  ventas:           number;
+  ingresos:         number;
   stock:            number;
   status:           StatusColor;
   statusLabel:      string;
-  brecha:           number;   // ultimaSemana - velocidadMadura
-  brechaPct:        number;   // % respecto a meta madura
+  brecha:           number;
+  brechaPct:        number;
   palancasSugeridas: string[];
-  w13: number; w14: number; w15: number; w16: number; w17: number;
+  // Ventana dinámica de semanas (últimas 5, ordenadas cronológicamente)
+  weeks:            WeekSlot[];
+  closedWeekLabel:  string;   // "W16" — base del diagnóstico
+  closedWeekValue:  number;
+  currentWeekLabel: string;   // "W17" — en curso
+  currentWeekValue: number;
 }
 
-type ProductInput = {
+export type ProductInput = {
   sku: string; nombre: string;
-  w13: number; w14: number; w15: number; w16: number; w17: number;
+  /** Historial de semanas ordenado cronológicamente (la ventana que se quiera mostrar) */
+  weekHistory: Array<WeekKey & { value: number }>;
   velocidadInicial: number; velocidadMadura: number;
   margenPct: number; acos: number;
   publicidad?: number; ventas?: number; ingresos?: number;
   stock: number; nota?: string | null;
 };
 
-/** W16 = última semana CERRADA — base del diagnóstico y palancas. W17 en curso. */
-export function getLastWeek(p: ProductInput): { value: number; label: string } {
-  return { value: p.w16, label: "W16" };
-}
-
-/** Calcula estado: VERDE / AMARILLO / ROJO */
-export function calculateStatus(ventaSemana: number, velocidadInicial: number, velocidadMadura: number): StatusColor {
+export function calculateStatus(
+  ventaSemana: number,
+  velocidadInicial: number,
+  velocidadMadura: number,
+): StatusColor {
   if (ventaSemana >= velocidadMadura)  return "VERDE";
   if (ventaSemana >= velocidadInicial) return "AMARILLO";
   return "ROJO";
 }
 
-/** Sugiere palancas según el estado y métricas del producto (basado en W16) */
-export function sugerirPalancas(p: ProductInput, status: StatusColor): string[] {
+export function sugerirPalancas(
+  p: Pick<ProductInput, "acos" | "stock">,
+  closedValue: number,
+  status: StatusColor,
+): string[] {
   const palancas: string[] = [];
-  const lastWeek = getLastWeek(p).value;
 
   if (status === "ROJO") {
-    if (lastWeek === 0) {
+    if (closedValue === 0) {
       palancas.push("Aplicar Relámpago");
       palancas.push("Subir el gasto en publicidad");
       palancas.push("Oportunidades SEO");
@@ -64,13 +83,12 @@ export function sugerirPalancas(p: ProductInput, status: StatusColor): string[] 
       palancas.push("Subir el gasto en publicidad");
     }
     if (p.acos > 0.15) palancas.push("Oportunidad ficha técnica");
-    if (p.stock === 0) palancas.push("Oportunidades logísticas FULL/FLEX");
+    if (p.stock === 0)  palancas.push("Oportunidades logísticas FULL/FLEX");
   }
 
   if (status === "AMARILLO") {
     palancas.push("Profundizar DOD");
-    if (p.acos < 0.08) palancas.push("Subir el gasto en publicidad");
-    else palancas.push("Oportunidades imágenes");
+    palancas.push(p.acos < 0.08 ? "Subir el gasto en publicidad" : "Oportunidades imágenes");
   }
 
   if (status === "VERDE") {
@@ -80,34 +98,59 @@ export function sugerirPalancas(p: ProductInput, status: StatusColor): string[] 
   return [...new Set(palancas)];
 }
 
-/** Genera diagnóstico completo de un producto */
 export function diagnosticar(p: ProductInput): ProductDiagnostico {
-  const { value: ultimaSemana, label: semanaRef } = getLastWeek(p);
-  const status = calculateStatus(ultimaSemana, p.velocidadInicial, p.velocidadMadura);
-  const brecha = ultimaSemana - p.velocidadMadura;
+  // Ordenar cronológicamente (garantía aunque ya vengan ordenadas)
+  const sorted = [...p.weekHistory].sort(
+    (a, b) => weekOrder(a) - weekOrder(b),
+  );
+
+  const n = sorted.length;
+
+  // Penúltima = cerrada (base del semáforo). Última = en curso.
+  // Si solo hay 1 semana, usamos la misma para ambos roles.
+  const closedEntry  = n >= 2 ? sorted[n - 2] : sorted[n - 1] ?? { year: 0, week: 0, value: 0 };
+  const currentEntry = sorted[n - 1] ?? closedEntry;
+
+  const closedValue  = closedEntry.value;
+  const closedLabel  = weekLabel(closedEntry);
+  const currentValue = currentEntry.value;
+  const currentLabel = weekLabel(currentEntry);
+
+  const status = calculateStatus(closedValue, p.velocidadInicial, p.velocidadMadura);
+  const brecha = closedValue - p.velocidadMadura;
   const brechaPct = p.velocidadMadura > 0
-    ? Math.round((ultimaSemana / p.velocidadMadura) * 100)
-    : 0;
+    ? Math.round((closedValue / p.velocidadMadura) * 100) : 0;
+
+  const weeks: WeekSlot[] = sorted.map((w, i) => ({
+    year:      w.year,
+    week:      w.week,
+    label:     weekLabel(w),
+    value:     w.value,
+    isClosed:  i === n - 2 || (n === 1 && i === 0),
+    isCurrent: i === n - 1,
+  }));
 
   return {
     sku:              p.sku,
     nombre:           p.nombre,
-    ultimaSemana,
-    semanaRef,
     velocidadInicial: p.velocidadInicial,
     velocidadMadura:  p.velocidadMadura,
     margenPct:        p.margenPct,
     acos:             p.acos,
     acosDisplay:      `${(p.acos * 100).toFixed(1)}%`,
-    publicidad:       p.publicidad ?? 0,
-    ventas:           p.ventas ?? 0,
-    ingresos:         p.ingresos ?? 0,
+    publicidad:       p.publicidad  ?? 0,
+    ventas:           p.ventas      ?? 0,
+    ingresos:         p.ingresos    ?? 0,
     stock:            p.stock,
     status,
-    statusLabel:      status === "VERDE" ? "Óptimo" : status === "AMARILLO" ? "Alerta" : "Crítico",
+    statusLabel: status === "VERDE" ? "Óptimo" : status === "AMARILLO" ? "Alerta" : "Crítico",
     brecha,
     brechaPct,
-    palancasSugeridas: sugerirPalancas(p, status),
-    w13: p.w13, w14: p.w14, w15: p.w15, w16: p.w16, w17: p.w17,
+    palancasSugeridas: sugerirPalancas(p, closedValue, status),
+    weeks,
+    closedWeekLabel:  closedLabel,
+    closedWeekValue:  closedValue,
+    currentWeekLabel: currentLabel,
+    currentWeekValue: currentValue,
   };
 }

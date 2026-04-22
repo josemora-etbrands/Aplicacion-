@@ -4,13 +4,17 @@ import MetricCard from "@/app/components/MetricCard";
 import VelocityChart from "@/app/components/VelocityChart";
 import DiagnosticoTable from "@/app/components/DiagnosticoTable";
 import { diagnosticar } from "@/app/lib/diagnostico";
+import { lastNWeeks, type WeekKey } from "@/app/lib/weekUtils";
 
 export const dynamic = "force-dynamic";
 
 async function getDashboardData() {
   try {
     const [products, recentActions] = await Promise.all([
-      prisma.product.findMany({ orderBy: [{ w17: "asc" }] }),
+      prisma.product.findMany({
+        orderBy: [{ w17: "asc" }],
+        include: { weeklySales: { orderBy: [{ year: "asc" }, { week: "asc" }] } },
+      }),
       prisma.actionLog.findMany({
         take: 6, orderBy: { createdAt: "desc" },
         include: { product: true, palanca: true },
@@ -24,7 +28,39 @@ async function getDashboardData() {
 
 export default async function DashboardPage() {
   const { products, recentActions, error } = await getDashboardData();
-  const diagnosticos = products.map(diagnosticar);
+
+  // Compute global week window from weeklySales
+  const allWeekKeys: WeekKey[] = [];
+  for (const p of products) {
+    for (const ws of p.weeklySales) allWeekKeys.push({ year: ws.year, week: ws.week });
+  }
+  const hasWeeklySales = allWeekKeys.length > 0;
+
+  const fallbackWindow: WeekKey[] = [
+    { year: 2026, week: 13 }, { year: 2026, week: 14 }, { year: 2026, week: 15 },
+    { year: 2026, week: 16 }, { year: 2026, week: 17 },
+  ];
+  const weekWindow = hasWeeklySales ? lastNWeeks(allWeekKeys, 5) : fallbackWindow;
+
+  const diagnosticos = products.map(p => {
+    const weekHistory = p.weeklySales.length > 0
+      ? p.weeklySales.map(ws => ({ year: ws.year, week: ws.week, value: ws.value }))
+      : [
+          { year: 2026, week: 13, value: p.w13 },
+          { year: 2026, week: 14, value: p.w14 },
+          { year: 2026, week: 15, value: p.w15 },
+          { year: 2026, week: 16, value: p.w16 },
+          { year: 2026, week: 17, value: p.w17 },
+        ];
+    return diagnosticar({
+      sku: p.sku, nombre: p.nombre,
+      weekHistory,
+      velocidadInicial: p.velocidadInicial, velocidadMadura: p.velocidadMadura,
+      margenPct: p.margenPct, acos: p.acos,
+      publicidad: p.publicidad, ventas: p.ventas, ingresos: p.ingresos,
+      stock: p.stock, nota: p.nota,
+    });
+  });
 
   const criticos  = diagnosticos.filter(d => d.status === "ROJO").length;
   const alertas   = diagnosticos.filter(d => d.status === "AMARILLO").length;
@@ -32,20 +68,18 @@ export default async function DashboardPage() {
   const saludPct  = diagnosticos.length ? Math.round((optimos / diagnosticos.length) * 100) : 0;
   const totalPalancasSugeridas = diagnosticos.reduce((acc, d) => acc + d.palancasSugeridas.length, 0);
 
-  // Top 5 más críticos para acciones sugeridas
   const topCriticos = diagnosticos
     .filter(d => d.status === "ROJO")
     .sort((a, b) => a.brechaPct - b.brechaPct)
     .slice(0, 5);
 
-  // Datos para gráfica de velocidad (top productos con historial)
   const velocityData = diagnosticos
-    .filter(d => d.ultimaSemana > 0)
+    .filter(d => d.currentWeekValue > 0)
     .slice(0, 5)
     .map(d => ({
       label:  d.sku.slice(0, 10),
-      before: Math.min(d.w13 ?? 0, d.velocidadMadura * 2),
-      after:  d.ultimaSemana,
+      before: Math.min(d.weeks[0]?.value ?? 0, d.velocidadMadura * 2),
+      after:  d.currentWeekValue,
     }));
 
   return (
@@ -94,12 +128,12 @@ export default async function DashboardPage() {
                 <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-emerald-500"/>Óptimo</span>
               </div>
             </div>
-            <DiagnosticoTable diagnosticos={diagnosticos} />
+            <DiagnosticoTable diagnosticos={diagnosticos} weekWindow={weekWindow} />
           </section>
 
           {/* Acciones IA + Historial */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Acciones sugeridas para críticos */}
+            {/* SKUs críticos */}
             <section>
               <h2 className="text-sm font-semibold text-white/50 uppercase tracking-wider mb-3">
                 ◈ Acciones IA — SKUs Críticos Prioritarios
@@ -117,8 +151,8 @@ export default async function DashboardPage() {
                             <p className="text-white text-xs font-medium mt-0.5 truncate max-w-[220px]">{d.nombre}</p>
                           </div>
                           <div className="text-right flex-shrink-0">
-                            <p className="text-xs text-red-400 font-mono">{d.ultimaSemana} / {d.velocidadMadura} uds</p>
-                            <p className="text-xs text-white/30">{d.semanaRef} vs Meta 2</p>
+                            <p className="text-xs text-red-400 font-mono">{d.closedWeekValue} / {d.velocidadMadura} uds</p>
+                            <p className="text-xs text-white/30">{d.closedWeekLabel} vs Meta Madura</p>
                           </div>
                         </div>
                         <div className="flex flex-wrap gap-1">
@@ -135,12 +169,12 @@ export default async function DashboardPage() {
               </div>
             </section>
 
-            {/* Gráfica velocidad + historial acciones */}
+            {/* Gráfica + historial acciones */}
             <section className="space-y-4">
               {velocityData.length > 0 && (
                 <div>
                   <h2 className="text-sm font-semibold text-white/50 uppercase tracking-wider mb-3">
-                    Velocidad — W13 vs Última Semana
+                    Velocidad — Primera vs Última Semana
                   </h2>
                   <VelocityChart data={velocityData} title="Evolución de ventas semanales" />
                 </div>

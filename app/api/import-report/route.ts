@@ -1,13 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import * as XLSX from "xlsx";
+import {
+  parseWeekHeader,
+  assignYears,
+  currentISOWeek,
+} from "@/app/lib/weekUtils";
 
 type ReportType = "PROFIT" | "VELOCIDAD" | "UNKNOWN";
 
 function detectType(headers: string[]): ReportType {
   const h = new Set(headers.map(s => s?.toString().trim()));
-  if (h.has("Margen %") && h.has("Publicidad"))           return "PROFIT";
-  if (h.has("W16") && h.has("W17") && h.has("Stock Total")) return "VELOCIDAD";
+  if (h.has("Margen %") && h.has("Publicidad"))              return "PROFIT";
+  if (h.has("Stock Total") && headers.some(hdr => /^W\d+$/.test(hdr.trim()))) return "VELOCIDAD";
   return "UNKNOWN";
 }
 
@@ -24,12 +29,10 @@ export async function POST(req: NextRequest) {
 
     const buffer = Buffer.from(await file.arrayBuffer());
     const wb = XLSX.read(buffer, { type: "buffer" });
-
-    // Preferir hoja "Report"; si no existe, usar la primera
     const sheetName = wb.SheetNames.includes("Report") ? "Report" : wb.SheetNames[0];
     const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(
       wb.Sheets[sheetName],
-      { defval: null }
+      { defval: null },
     );
 
     if (rows.length === 0)
@@ -40,11 +43,26 @@ export async function POST(req: NextRequest) {
 
     if (reportType === "UNKNOWN")
       return NextResponse.json({
-        error: "Tipo de reporte no reconocido. Debe contener 'Margen %' + 'Publicidad' (Profit) o 'W16' + 'W17' + 'Stock Total' (Velocidad).",
+        error: "Reporte no reconocido. Debe tener 'Margen %' + 'Publicidad' (Profit) o columnas 'W##' + 'Stock Total' (Velocidad).",
       }, { status: 422 });
 
     let updated = 0, created = 0, skipped = 0;
     const errors: string[] = [];
+
+    // ── VELOCIDAD: detectar semanas dinámicamente ──────────────────────
+    let weekCols: Array<{ header: string; week: number; year: number }> = [];
+
+    if (reportType === "VELOCIDAD") {
+      const { year: refYear, week: refWeek } = currentISOWeek();
+      const weekHeaders = headers.filter(h => parseWeekHeader(h) !== null);
+      const weekNumbers = weekHeaders.map(h => parseWeekHeader(h)!);
+      const assigned   = assignYears(weekNumbers, refYear, refWeek);
+      weekCols = weekHeaders.map((h, i) => ({
+        header: h,
+        week:   assigned[i].week,
+        year:   assigned[i].year,
+      }));
+    }
 
     for (const row of rows) {
       const sku = row["SKU"]?.toString().trim();
@@ -58,7 +76,7 @@ export async function POST(req: NextRequest) {
             ventas:     num(row["Ventas"]),
             ingresos:   num(row["Ingresos"]),
           };
-          const nombre = row["Nombre"]?.toString().trim() ?? sku;
+          const nombre  = row["Nombre"]?.toString().trim() ?? sku;
           const existing = await prisma.product.findUnique({ where: { sku } });
           if (existing) {
             await prisma.product.update({ where: { sku }, data });
@@ -69,26 +87,46 @@ export async function POST(req: NextRequest) {
             });
             created++;
           }
+
         } else {
           // VELOCIDAD
-          const data = {
-            w13:   num(row["W13"]),
-            w14:   num(row["W14"]),
-            w15:   num(row["W15"]),
-            w16:   num(row["W16"]),
-            w17:   num(row["W17"]),
-            stock: Math.round(num(row["Stock Total"])),
-          };
-          const nombre = row["Nombre"]?.toString().trim() ?? sku;
-          const existing = await prisma.product.findUnique({ where: { sku } });
-          if (existing) {
-            await prisma.product.update({ where: { sku }, data });
-            updated++;
-          } else {
-            await prisma.product.create({
-              data: { sku, nombre, ...data, velocidadInicial: 1.2, velocidadMadura: 4.7 },
+          const stock   = Math.round(num(row["Stock Total"]));
+          const nombre  = row["Nombre"]?.toString().trim() ?? sku;
+
+          // Asegurar que el producto exista
+          let product = await prisma.product.findUnique({ where: { sku } });
+          if (!product) {
+            product = await prisma.product.create({
+              data: { sku, nombre, stock, velocidadInicial: 1.2, velocidadMadura: 4.7 },
             });
             created++;
+          } else {
+            await prisma.product.update({ where: { sku }, data: { stock } });
+            updated++;
+          }
+
+          // Guardar TODAS las semanas en weekly_sales (upsert)
+          for (const col of weekCols) {
+            const value = num(row[col.header]);
+            await prisma.weeklySales.upsert({
+              where:  { productId_year_week: { productId: product.id, year: col.year, week: col.week } },
+              update: { value },
+              create: { productId: product.id, year: col.year, week: col.week, value },
+            });
+          }
+
+          // Mantener w13–w17 sincronizados para compatibilidad (usando las últimas semanas conocidas)
+          const lastCols = weekCols.slice(-5);
+          const wMap: Record<string, number> = {};
+          for (const c of lastCols) wMap[`w${c.week}`] = num(row[c.header]);
+          // Actualizar solo los campos que existen en el schema (w13-w17)
+          const compat: Record<string, number> = {};
+          for (const wn of [13, 14, 15, 16, 17]) {
+            const match = weekCols.find(c => c.week === wn);
+            if (match) compat[`w${wn}`] = num(row[match.header]);
+          }
+          if (Object.keys(compat).length > 0) {
+            await prisma.product.update({ where: { sku }, data: compat });
           }
         }
       } catch (err) {
@@ -101,6 +139,7 @@ export async function POST(req: NextRequest) {
       success: true,
       reportType,
       sheetUsed: sheetName,
+      weekColumns: reportType === "VELOCIDAD" ? weekCols.length : undefined,
       stats: { total: rows.length, updated, created, skipped },
       errors,
     });

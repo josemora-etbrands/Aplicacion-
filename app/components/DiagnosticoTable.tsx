@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
 import type { ProductDiagnostico } from "@/app/lib/diagnostico";
+import type { WeekKey } from "@/app/lib/weekUtils";
 
 const statusStyle: Record<string, string> = {
   VERDE:    "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
@@ -25,11 +26,12 @@ function fmtCLP(n: number): string {
   return `$${n}`;
 }
 
-const W17_TIP = "Semana en curso — No contemplada en diagnóstico";
+interface Props {
+  diagnosticos: ProductDiagnostico[];
+  weekWindow: WeekKey[];
+}
 
-interface Props { diagnosticos: ProductDiagnostico[] }
-
-export default function DiagnosticoTable({ diagnosticos }: Props) {
+export default function DiagnosticoTable({ diagnosticos, weekWindow }: Props) {
   const [filter, setFilter] = useState<"ALL" | "ROJO" | "AMARILLO" | "VERDE">("ALL");
   const [search, setSearch] = useState("");
 
@@ -39,6 +41,13 @@ export default function DiagnosticoTable({ diagnosticos }: Props) {
         !d.nombre.toLowerCase().includes(search.toLowerCase())) return false;
     return true;
   });
+
+  // Identify closed/current positions in weekWindow (last two)
+  const closedKey  = weekWindow.length >= 2 ? weekWindow[weekWindow.length - 2] : weekWindow[weekWindow.length - 1];
+  const currentKey = weekWindow[weekWindow.length - 1];
+
+  function isClosedCol(wk: WeekKey)  { return closedKey  && wk.year === closedKey.year  && wk.week === closedKey.week; }
+  function isCurrentCol(wk: WeekKey) { return currentKey && wk.year === currentKey.year && wk.week === currentKey.week; }
 
   return (
     <div className="rounded-xl border border-white/5 bg-[#111111] overflow-hidden">
@@ -78,20 +87,33 @@ export default function DiagnosticoTable({ diagnosticos }: Props) {
               <th className="text-left px-4 py-2.5 text-white/30 font-medium uppercase tracking-wider whitespace-nowrap">Publicidad</th>
               <th className="text-left px-4 py-2.5 text-white/30 font-medium uppercase tracking-wider whitespace-nowrap">Meta Inicial</th>
               <th className="text-left px-4 py-2.5 text-white/30 font-medium uppercase tracking-wider whitespace-nowrap">Meta Madura</th>
-              {/* Semanas históricas */}
-              {(["W13","W14","W15"] as const).map(w => (
-                <th key={w} className="text-center px-3 py-2.5 text-white/20 font-medium uppercase tracking-wider whitespace-nowrap bg-white/[0.02]">{w}</th>
-              ))}
-              {/* W16: semana cerrada — base del diagnóstico */}
-              <th className="text-center px-4 py-2.5 text-white/70 font-semibold uppercase tracking-wider whitespace-nowrap bg-white/[0.04] border-x border-white/10">
-                W16 ◈
-                <span className="block text-[9px] text-white/30 font-normal normal-case tracking-normal mt-0.5">sem. cerrada</span>
-              </th>
-              {/* W17: en curso */}
-              <th title={W17_TIP} className="text-center px-3 py-2.5 text-white/25 font-medium uppercase tracking-wider whitespace-nowrap bg-white/[0.015] border-r border-white/5 cursor-help">
-                W17
-                <span className="block text-[9px] text-white/20 font-normal normal-case tracking-normal mt-0.5 italic">en curso</span>
-              </th>
+              {/* Dynamic week columns */}
+              {weekWindow.map(wk => {
+                const closed  = isClosedCol(wk);
+                const current = isCurrentCol(wk);
+                const label   = `W${wk.week}`;
+                if (closed) return (
+                  <th key={`${wk.year}-${wk.week}`}
+                    className="text-center px-4 py-2.5 text-white/70 font-semibold uppercase tracking-wider whitespace-nowrap bg-white/[0.04] border-x border-white/10">
+                    {label} ◈
+                    <span className="block text-[9px] text-white/30 font-normal normal-case tracking-normal mt-0.5">sem. cerrada</span>
+                  </th>
+                );
+                if (current) return (
+                  <th key={`${wk.year}-${wk.week}`}
+                    title="Semana en curso — No contemplada en diagnóstico"
+                    className="text-center px-3 py-2.5 text-white/25 font-medium uppercase tracking-wider whitespace-nowrap bg-white/[0.015] border-r border-white/5 cursor-help">
+                    {label}
+                    <span className="block text-[9px] text-white/20 font-normal normal-case tracking-normal mt-0.5 italic">en curso</span>
+                  </th>
+                );
+                return (
+                  <th key={`${wk.year}-${wk.week}`}
+                    className="text-center px-3 py-2.5 text-white/20 font-medium uppercase tracking-wider whitespace-nowrap bg-white/[0.02]">
+                    {label}
+                  </th>
+                );
+              })}
               {/* Análisis */}
               <th className="text-left px-4 py-2.5 text-white/30 font-medium uppercase tracking-wider whitespace-nowrap">% Madura</th>
               <th className="text-left px-4 py-2.5 text-white/30 font-medium uppercase tracking-wider whitespace-nowrap">Estado</th>
@@ -101,40 +123,49 @@ export default function DiagnosticoTable({ diagnosticos }: Props) {
           <tbody>
             {visible.map((d, i) => (
               <tr key={d.sku} className={`${i < visible.length - 1 ? "border-b border-white/5" : ""} hover:bg-white/[0.02] transition-colors`}>
-                {/* SKU */}
                 <td className="px-4 py-2.5">
                   <span className="font-mono text-[#3b82f6]">{d.sku}</span>
                 </td>
-                {/* Nombre */}
                 <td className="px-4 py-2.5 max-w-[160px]">
                   <span className="text-white/80 block truncate">{d.nombre}</span>
                 </td>
-                {/* Margen % */}
                 <td className={`px-4 py-2.5 font-mono ${d.margenPct < 0 ? "text-red-400" : d.margenPct < 15 ? "text-yellow-400" : "text-emerald-400"}`}>
                   {d.margenPct === 0 ? <span className="text-white/20">—</span> : `${d.margenPct.toFixed(1)}%`}
                 </td>
-                {/* Publicidad */}
                 <td className="px-4 py-2.5 font-mono text-white/50">
                   {fmtCLP(d.publicidad)}
                 </td>
-                {/* Meta Inicial */}
                 <td className="px-4 py-2.5 font-mono text-white/40">{d.velocidadInicial}</td>
-                {/* Meta Madura */}
                 <td className="px-4 py-2.5 font-mono text-white/40">{d.velocidadMadura}</td>
-                {/* W13, W14, W15 */}
-                {([d.w13, d.w14, d.w15] as number[]).map((val, idx) => (
-                  <td key={idx} className={`px-3 py-2.5 text-center font-mono bg-white/[0.02] ${weekColor(val, d)}`}>
-                    {val === 0 ? <span className="text-white/15">—</span> : val}
-                  </td>
-                ))}
-                {/* W16 — base del semáforo */}
-                <td className={`px-4 py-2.5 text-center font-mono font-bold bg-white/[0.04] border-x border-white/10 ${weekColor(d.w16, d)}`}>
-                  {d.w16 === 0 ? <span className="text-white/25 font-normal">—</span> : d.w16}
-                </td>
-                {/* W17 — en curso */}
-                <td title={W17_TIP} className="px-3 py-2.5 text-center font-mono italic text-white/30 bg-white/[0.015] border-r border-white/5 cursor-help">
-                  {d.w17 === 0 ? <span className="text-white/15">—</span> : d.w17}
-                </td>
+                {/* Dynamic week cells */}
+                {weekWindow.map(wk => {
+                  const slot   = d.weeks.find(w => w.year === wk.year && w.week === wk.week);
+                  const val    = slot?.value ?? 0;
+                  const closed  = isClosedCol(wk);
+                  const current = isCurrentCol(wk);
+                  const color   = weekColor(val, d);
+                  const display = val === 0 ? <span className={closed ? "text-white/25 font-normal" : "text-white/15"}>—</span> : val;
+
+                  if (closed) return (
+                    <td key={`${wk.year}-${wk.week}`}
+                      className={`px-4 py-2.5 text-center font-mono font-bold bg-white/[0.04] border-x border-white/10 ${color}`}>
+                      {display}
+                    </td>
+                  );
+                  if (current) return (
+                    <td key={`${wk.year}-${wk.week}`}
+                      title="Semana en curso — No contemplada en diagnóstico"
+                      className="px-3 py-2.5 text-center font-mono italic text-white/30 bg-white/[0.015] border-r border-white/5 cursor-help">
+                      {display}
+                    </td>
+                  );
+                  return (
+                    <td key={`${wk.year}-${wk.week}`}
+                      className={`px-3 py-2.5 text-center font-mono bg-white/[0.02] ${color}`}>
+                      {display}
+                    </td>
+                  );
+                })}
                 {/* % Madura */}
                 <td className="px-4 py-2.5">
                   <div className="flex items-center gap-2 min-w-[72px]">
