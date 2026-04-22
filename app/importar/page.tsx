@@ -68,12 +68,23 @@ export default function ImportarPage() {
     const form = new FormData();
     form.append("file", file);
     try {
-      const res  = await fetch("/api/import-report", { method: "POST", body: form });
-      const json = await res.json();
-      if (!res.ok) { setErrorMsg(json.error ?? "Error desconocido"); setStatus("error"); }
-      else         { setResult(json); setStatus("success"); }
-    } catch {
-      setErrorMsg("No se pudo conectar con el servidor");
+      const res = await fetch("/api/import-report", { method: "POST", body: form });
+
+      // Capturar texto primero para diagnosticar si no es JSON
+      const text = await res.text();
+      let json: Record<string, unknown>;
+      try {
+        json = JSON.parse(text);
+      } catch {
+        setErrorMsg(`El servidor devolvió una respuesta inesperada (HTTP ${res.status}):\n${text.slice(0, 300)}`);
+        setStatus("error");
+        return;
+      }
+
+      if (!res.ok) { setErrorMsg((json.error as string) ?? "Error desconocido"); setStatus("error"); }
+      else         { setResult(json as unknown as ImportResult); setStatus("success"); }
+    } catch (e) {
+      setErrorMsg(`Error de red: ${String(e)}`);
       setStatus("error");
     }
   }, []);
