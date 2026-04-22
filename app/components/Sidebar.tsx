@@ -3,10 +3,11 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 const nav = [
-  { href: "/",            icon: "⬡", label: "Dashboard"          },
-  { href: "/red-zone",    icon: "⚠", label: "Inventario Crítico"  },
-  { href: "/ia-history",  icon: "◈", label: "Historial de IA"     },
-  { href: "/api-config",  icon: "⚙", label: "Configuración API"   },
+  { href: "/",          icon: "⬡", label: "Dashboard"          },
+  { href: "/importar",  icon: "⬆", label: "Importar Reporte"   },
+  { href: "/red-zone",  icon: "⚠", label: "Inventario Crítico"  },
+  { href: "/ia-history",icon: "◈", label: "Historial de IA"     },
+  { href: "/api-config",icon: "⚙", label: "Configuración API"   },
 ];
 
 export default function Sidebar() {

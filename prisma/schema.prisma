@@ -29,10 +29,13 @@ model Product {
   velocidadInicial Float       // Meta 1: venta semanal mínima esperada
   velocidadMadura  Float       // Meta 2: venta semanal en estado maduro
 
-  // Métricas financieras
+  // Métricas financieras (fuente: ProfitGuard - Productos)
   margenPct        Float       @default(0)   // Margen % (ej: 33.7)
   acos             Float       @default(0)   // Publicidad/Ingresos ratio (ej: 0.049)
   precioVenta      Float       @default(0)   // Precio de venta ML calculado
+  publicidad       Float       @default(0)   // Gasto en publicidad CLP
+  ventas           Float       @default(0)   // Ingresos netos por ventas CLP
+  ingresos         Float       @default(0)   // Ingresos brutos CLP
 
   // Ventas semanales últimas 5 semanas (W13–W17)
   w13              Float       @default(0)
