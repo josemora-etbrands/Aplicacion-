@@ -6,10 +6,12 @@ type ReportType = "PROFIT" | "VELOCIDAD";
 type Status = "idle" | "uploading" | "success" | "error";
 
 interface ImportResult {
-  reportType: ReportType;
-  sheetUsed:  string;
-  stats:      { total: number; updated: number; created: number; skipped: number };
-  errors:     string[];
+  reportType:       ReportType;
+  sheetUsed:        string;
+  detectedHeaders:  string[];
+  weekColumns?:     string[];
+  stats:            { total: number; updated: number; created: number; skipped: number };
+  errors:           string[];
 }
 
 const REPORT_META: Record<ReportType, { label: string; color: string; fields: string }> = {
@@ -143,9 +145,30 @@ export default function ImportarPage() {
                     </div>
                   ))}
                 </div>
+                {/* Diagnóstico: columnas detectadas */}
+                <details className="rounded-lg bg-white/[0.03] border border-white/5 p-3">
+                  <summary className="text-white/30 text-xs cursor-pointer select-none">
+                    Columnas detectadas ({result.detectedHeaders.length})
+                  </summary>
+                  <div className="mt-2 flex flex-wrap gap-1">
+                    {result.detectedHeaders.map(h => (
+                      <span key={h} className="text-[10px] font-mono bg-white/5 text-white/40 px-1.5 py-0.5 rounded">{h}</span>
+                    ))}
+                  </div>
+                  {result.weekColumns && result.weekColumns.length > 0 && (
+                    <div className="mt-2">
+                      <p className="text-white/20 text-[10px] mb-1">Semanas mapeadas:</p>
+                      <div className="flex flex-wrap gap-1">
+                        {result.weekColumns.map(w => (
+                          <span key={w} className="text-[10px] font-mono bg-[#3b82f6]/10 text-[#3b82f6]/70 px-1.5 py-0.5 rounded">{w}</span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </details>
                 {result.errors.length > 0 && (
                   <div className="rounded-lg bg-red-500/10 border border-red-500/20 p-3 space-y-1">
-                    <p className="text-red-400 text-xs font-semibold">SKUs con error:</p>
+                    <p className="text-red-400 text-xs font-semibold">SKUs con error ({result.errors.length}):</p>
                     {result.errors.map((e, i) => (
                       <p key={i} className="text-red-400/70 text-xs font-mono">{e}</p>
                     ))}

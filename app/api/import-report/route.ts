@@ -10,15 +10,23 @@ import {
 type ReportType = "PROFIT" | "VELOCIDAD" | "UNKNOWN";
 
 function detectType(headers: string[]): ReportType {
-  const h = new Set(headers.map(s => s?.toString().trim()));
-  if (h.has("Margen %") && h.has("Publicidad"))              return "PROFIT";
-  if (h.has("Stock Total") && headers.some(hdr => /^W\d+$/.test(hdr.trim()))) return "VELOCIDAD";
+  const h = new Set(headers.map(s => s?.toString().trim().toLowerCase()));
+  if (h.has("margen %") && h.has("publicidad"))               return "PROFIT";
+  if (h.has("stock total") && headers.some(hdr => /^W\d+$/i.test(hdr.trim()))) return "VELOCIDAD";
   return "UNKNOWN";
 }
 
 function num(v: unknown): number {
   const n = parseFloat(String(v ?? 0).replace(",", "."));
   return isNaN(n) ? 0 : n;
+}
+
+/** Lookup case-insensitive en una fila normalizada */
+function col(row: Record<string, unknown>, name: string): unknown {
+  if (name in row) return row[name];
+  const lower = name.toLowerCase();
+  const key = Object.keys(row).find(k => k.toLowerCase() === lower);
+  return key ? row[key] : null;
 }
 
 export async function POST(req: NextRequest) {
@@ -34,7 +42,7 @@ export async function POST(req: NextRequest) {
       wb.Sheets[sheetName],
       { defval: null },
     );
-    // Normalizar claves: recortar espacios para evitar fallos en row["Stock Total"] etc.
+    // Normalizar claves: trim para eliminar espacios residuales
     const rows = rawRows.map(r =>
       Object.fromEntries(Object.entries(r).map(([k, v]) => [k.trim(), v]))
     );
@@ -47,7 +55,9 @@ export async function POST(req: NextRequest) {
 
     if (reportType === "UNKNOWN")
       return NextResponse.json({
-        error: "Reporte no reconocido. Debe tener 'Margen %' + 'Publicidad' (Profit) o columnas 'W##' + 'Stock Total' (Velocidad).",
+        error: "Reporte no reconocido.",
+        detectedHeaders: headers,
+        hint: "Debe tener 'Margen %' + 'Publicidad' (Profit) o columnas 'W##' + 'Stock Total' (Velocidad).",
       }, { status: 422 });
 
     let updated = 0, created = 0, skipped = 0;
@@ -69,21 +79,22 @@ export async function POST(req: NextRequest) {
     }
 
     for (const row of rows) {
-      const sku = row["SKU"]?.toString().trim();
+      const skuRaw = col(row, "SKU") ?? col(row, "Sku") ?? col(row, "sku");
+      const sku = skuRaw?.toString().trim();
       if (!sku) { skipped++; continue; }
 
       try {
         if (reportType === "PROFIT") {
-          const publicidad = num(row["Publicidad"]);
-          const ingresos   = num(row["Ingresos"]);
+          const publicidad = num(col(row, "Publicidad"));
+          const ingresos   = num(col(row, "Ingresos"));
           const data = {
-            margenPct:  num(row["Margen %"]),
+            margenPct:  num(col(row, "Margen %")),
             publicidad,
-            ventas:     num(row["Ventas"]),
+            ventas:     num(col(row, "Ventas")),
             ingresos,
             acos:       ingresos > 0 ? publicidad / ingresos : 0,
           };
-          const nombre  = row["Nombre"]?.toString().trim() ?? sku;
+          const nombre = col(row, "Nombre")?.toString().trim() ?? sku;
           const existing = await prisma.product.findUnique({ where: { sku } });
           if (existing) {
             await prisma.product.update({ where: { sku }, data });
@@ -97,10 +108,9 @@ export async function POST(req: NextRequest) {
 
         } else {
           // VELOCIDAD
-          const stock   = Math.round(num(row["Stock Total"]));
-          const nombre  = row["Nombre"]?.toString().trim() ?? sku;
+          const stock  = Math.round(num(col(row, "Stock Total")));
+          const nombre = col(row, "Nombre")?.toString().trim() ?? sku;
 
-          // Asegurar que el producto exista
           let product = await prisma.product.findUnique({ where: { sku } });
           if (!product) {
             product = await prisma.product.create({
@@ -112,19 +122,18 @@ export async function POST(req: NextRequest) {
             updated++;
           }
 
-          // Guardar TODAS las semanas en weekly_sales (upsert)
-          for (const col of weekCols) {
-            const value = num(row[col.header]);
+          // Guardar todas las semanas en weekly_sales (upsert)
+          for (const c of weekCols) {
+            const value = num(row[c.header]);
             await prisma.weeklySales.upsert({
-              where:  { productId_year_week: { productId: product.id, year: col.year, week: col.week } },
+              where:  { productId_year_week: { productId: product.id, year: c.year, week: c.week } },
               update: { value },
-              create: { productId: product.id, year: col.year, week: col.week, value },
+              create: { productId: product.id, year: c.year, week: c.week, value },
             });
           }
-
         }
       } catch (err) {
-        if (errors.length < 5) errors.push(`SKU ${sku}: ${String(err)}`);
+        if (errors.length < 10) errors.push(`SKU ${sku}: ${String(err)}`);
         skipped++;
       }
     }
@@ -133,7 +142,8 @@ export async function POST(req: NextRequest) {
       success: true,
       reportType,
       sheetUsed: sheetName,
-      weekColumns: reportType === "VELOCIDAD" ? weekCols.length : undefined,
+      detectedHeaders: headers,
+      weekColumns: reportType === "VELOCIDAD" ? weekCols.map(c => `${c.header}→W${c.week}/${c.year}`) : undefined,
       stats: { total: rows.length, updated, created, skipped },
       errors,
     });
