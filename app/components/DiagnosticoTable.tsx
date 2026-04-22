@@ -12,13 +12,15 @@ const barColor: Record<string, string> = {
   VERDE: "bg-emerald-500", AMARILLO: "bg-yellow-500", ROJO: "bg-red-500",
 };
 
-/** Color de una celda de semana según valor vs metas del producto */
+/** Color semántico de una celda de semana según valor vs metas */
 function weekCellColor(value: number, d: ProductDiagnostico): string {
-  if (value === 0)                return "text-white/20";
-  if (value >= d.velocidadMadura) return "text-emerald-400";
-  if (value >= d.velocidadInicial)return "text-yellow-400";
+  if (value === 0)                 return "text-white/20";
+  if (value >= d.velocidadMadura)  return "text-emerald-400";
+  if (value >= d.velocidadInicial) return "text-yellow-400";
   return "text-red-400";
 }
+
+const W17_TOOLTIP = "Semana en curso — No contemplada en diagnóstico";
 
 interface Props { diagnosticos: ProductDiagnostico[] }
 
@@ -52,10 +54,10 @@ export default function DiagnosticoTable({ diagnosticos }: Props) {
                 : "bg-[#3b82f6]/20 text-[#3b82f6] border-[#3b82f6]/30"
                 : "text-white/30 border-white/10 hover:border-white/20"
             }`}>
-            {f === "ALL"      ? `Todos (${diagnosticos.length})`
-            : f === "ROJO"    ? `🔴 ${diagnosticos.filter(d => d.status === "ROJO").length}`
-            : f === "AMARILLO"? `🟡 ${diagnosticos.filter(d => d.status === "AMARILLO").length}`
-            :                   `🟢 ${diagnosticos.filter(d => d.status === "VERDE").length}`}
+            {f === "ALL"       ? `Todos (${diagnosticos.length})`
+            : f === "ROJO"     ? `🔴 ${diagnosticos.filter(d => d.status === "ROJO").length}`
+            : f === "AMARILLO" ? `🟡 ${diagnosticos.filter(d => d.status === "AMARILLO").length}`
+            :                    `🟢 ${diagnosticos.filter(d => d.status === "VERDE").length}`}
           </button>
         ))}
         <span className="text-xs text-white/20 ml-auto">{visible.length} SKUs</span>
@@ -66,23 +68,37 @@ export default function DiagnosticoTable({ diagnosticos }: Props) {
         <table className="w-full text-xs">
           <thead>
             <tr className="border-b border-white/5">
-              {/* Columnas fijas */}
+              {/* Columnas principales */}
               <th className="text-left px-4 py-2.5 text-white/30 font-medium uppercase tracking-wider whitespace-nowrap">SKU</th>
               <th className="text-left px-4 py-2.5 text-white/30 font-medium uppercase tracking-wider whitespace-nowrap">Producto</th>
 
-              {/* Historial W13–W16 (referencia secundaria) */}
-              {(["W13","W14","W15","W16"] as const).map(w => (
+              {/* W13–W15: historial pasado */}
+              {(["W13","W14","W15"] as const).map(w => (
                 <th key={w} className="text-center px-3 py-2.5 text-white/20 font-medium uppercase tracking-wider whitespace-nowrap bg-white/[0.02]">
                   {w}
                 </th>
               ))}
 
-              {/* W17 — referencia del semáforo, destacada */}
+              {/* W16: semana cerrada — base del diagnóstico */}
               <th className="text-center px-4 py-2.5 text-white/70 font-semibold uppercase tracking-wider whitespace-nowrap bg-white/[0.04] border-x border-white/10">
-                W17 ◈
+                W16 ◈
+                <span className="block text-[9px] text-white/30 font-normal normal-case tracking-normal mt-0.5">
+                  sem. cerrada
+                </span>
               </th>
 
-              {/* Columnas de análisis */}
+              {/* W17: semana en curso — solo informativa */}
+              <th
+                title={W17_TOOLTIP}
+                className="text-center px-3 py-2.5 text-white/25 font-medium uppercase tracking-wider whitespace-nowrap bg-white/[0.015] border-r border-white/5 cursor-help"
+              >
+                W17
+                <span className="block text-[9px] text-white/20 font-normal normal-case tracking-normal mt-0.5 italic">
+                  en curso
+                </span>
+              </th>
+
+              {/* Análisis */}
               <th className="text-left px-4 py-2.5 text-white/30 font-medium uppercase tracking-wider whitespace-nowrap">Meta Inicial</th>
               <th className="text-left px-4 py-2.5 text-white/30 font-medium uppercase tracking-wider whitespace-nowrap">Meta Madura</th>
               <th className="text-left px-4 py-2.5 text-white/30 font-medium uppercase tracking-wider whitespace-nowrap">% Madura</th>
@@ -109,16 +125,24 @@ export default function DiagnosticoTable({ diagnosticos }: Props) {
                   <span className="text-white/80 block truncate">{d.nombre}</span>
                 </td>
 
-                {/* W13–W16: historial secundario, tono atenuado */}
-                {([d.w13, d.w14, d.w15, d.w16] as number[]).map((val, idx) => (
+                {/* W13, W14, W15 */}
+                {([d.w13, d.w14, d.w15] as number[]).map((val, idx) => (
                   <td key={idx} className={`px-3 py-2.5 text-center font-mono bg-white/[0.02] ${weekCellColor(val, d)}`}>
                     {val === 0 ? <span className="text-white/15">—</span> : val}
                   </td>
                 ))}
 
-                {/* W17: referencia del semáforo — negrita y fondo más brillante */}
-                <td className={`px-4 py-2.5 text-center font-mono font-bold bg-white/[0.04] border-x border-white/10 ${weekCellColor(d.w17, d)}`}>
-                  {d.w17 === 0 ? <span className="text-white/25 font-normal">—</span> : d.w17}
+                {/* W16 — semana cerrada, base del semáforo */}
+                <td className={`px-4 py-2.5 text-center font-mono font-bold bg-white/[0.04] border-x border-white/10 ${weekCellColor(d.w16, d)}`}>
+                  {d.w16 === 0 ? <span className="text-white/25 font-normal">—</span> : d.w16}
+                </td>
+
+                {/* W17 — en curso, gris/itálica, tooltip informativo */}
+                <td
+                  title={W17_TOOLTIP}
+                  className="px-3 py-2.5 text-center font-mono italic text-white/30 bg-white/[0.015] border-r border-white/5 cursor-help"
+                >
+                  {d.w17 === 0 ? <span className="text-white/15">—</span> : d.w17}
                 </td>
 
                 {/* Meta Inicial */}

@@ -34,8 +34,9 @@ type ProductInput = {
 
 /** Determina cuál semana usar como referencia (última con datos) */
 export function getLastWeek(p: ProductInput): { value: number; label: string } {
-  // W17 es siempre la referencia — si está en 0 el semáforo refleja la realidad actual
-  return { value: p.w17, label: "W17" };
+  // W16 = última semana CERRADA → base del diagnóstico y palancas.
+  // W17 está en curso y puede estar incompleta; se muestra en UI pero no se usa aquí.
+  return { value: p.w16, label: "W16" };
 }
 
 /** Calcula estado: VERDE / AMARILLO / ROJO */
