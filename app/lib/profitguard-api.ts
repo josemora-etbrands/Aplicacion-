@@ -68,6 +68,14 @@ export class PGRateLimitError extends Error {
   }
 }
 
+/** 404 en una página de paginación = fin del catálogo, no error fatal */
+export class PGPageNotFoundError extends Error {
+  constructor() {
+    super("Página no encontrada — fin del catálogo.");
+    this.name = "PGPageNotFoundError";
+  }
+}
+
 // ──────────────────────────────────────────────────────────────
 //  Helper: fetch autenticado con timeout y errores descriptivos
 // ──────────────────────────────────────────────────────────────
@@ -111,6 +119,7 @@ async function pgFetch(path: string): Promise<unknown> {
     if (res.status === 401 || res.status === 403) throw new PGAuthError();
     if (res.status === 429)                        throw new PGRateLimitError();
     if (res.status >= 500)                         throw new PGDownError(res.status);
+    if (res.status === 404)                        throw new PGPageNotFoundError();
     throw new Error(`ProfitGuard respondió HTTP ${res.status} en ${path}: ${body.slice(0, 200)}`);
   }
 
@@ -205,7 +214,17 @@ export async function fetchAllProducts(): Promise<PGProduct[]> {
   let   totalCount         = 0; // actualizado con la primera respuesta
 
   while (true) {
-    const data  = await pgFetch(`/api/v1/products?page=${page}&per_page=${PER_PAGE}`);
+    let data: unknown;
+    try {
+      data = await pgFetch(`/api/v1/products?page=${page}&per_page=${PER_PAGE}`);
+    } catch (err) {
+      // 404 = ProfitGuard no tiene más páginas → fin normal del catálogo
+      if (err instanceof PGPageNotFoundError) {
+        console.log(`[PG API] Página ${page} devolvió 404 — fin del catálogo.`);
+        break;
+      }
+      throw err; // cualquier otro error sí es fatal
+    }
     const batch = extractArray(data);
 
     // ── Metadatos de paginación ───────────────────────────────
