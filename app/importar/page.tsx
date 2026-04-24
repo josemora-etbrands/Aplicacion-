@@ -21,7 +21,10 @@ interface SyncResult {
   source:        string;
   syncedAt?:     string;
   elapsed?:      string;
-  stats:         { total: number; updated: number; created: number; skipped: number };
+  stats: {
+    catalog: { total: number; updated: number; created: number; skipped: number };
+    orders:  { skusWithSales: number; productsUpdated: number; weeklySalesUpserted: number };
+  };
   processedSkus: number;
   errors:        string[];
 }
@@ -52,9 +55,9 @@ const PHASES = [
 
 const SYNC_PHASES = [
   "Conectando con ProfitGuard…",
-  "Calculando catálogo completo…",
-  "Descargando páginas de productos…",
-  "Actualizando base de datos en lotes…",
+  "Descargando catálogo de productos…",
+  "Descargando historial de órdenes…",
+  "Actualizando métricas y semanas…",
   "Sincronización exitosa ✓",
 ];
 
@@ -210,7 +213,7 @@ export default function ImportarPage() {
                     <span className="text-lg">⚡</span>
                     <div>
                       <p className="text-[#3b82f6] text-sm font-semibold">Sincronizar con API en Tiempo Real</p>
-                      <p className="text-white/30 text-xs">Jala productos, stock y métricas directamente desde ProfitGuard</p>
+                      <p className="text-white/30 text-xs">Jala catálogo, historial semanal de órdenes, ingresos y margen desde ProfitGuard</p>
                     </div>
                   </div>
                   {/* Badge última sync */}
@@ -230,7 +233,7 @@ export default function ImportarPage() {
                   ⚡ Sincronizar ahora →
                 </button>
                 <p className="text-white/15 text-[11px] text-center">
-                  Requiere <code className="font-mono">PROFITGUARD_API_KEY</code> en .env.local · No reemplaza el historial semanal (usa Excel para eso)
+                  Requiere <code className="font-mono">PROFITGUARD_API_KEY</code> en .env.local · Stock y ACOS aún requieren importación Excel
                 </p>
               </div>
 
@@ -280,9 +283,9 @@ export default function ImportarPage() {
               <div className="rounded-xl border border-white/5 bg-[#111111] p-5 space-y-3">
                 <p className="text-white/40 text-xs font-semibold uppercase tracking-wider">Orden recomendado</p>
                 <ol className="space-y-2 text-white/35 text-xs list-decimal list-inside">
-                  <li>Usa <span className="text-[#3b82f6]">⚡ Sync API</span> para traer productos y stock en tiempo real</li>
-                  <li>Importa <span className="text-[#3b82f6]">Velocidad de Ventas</span> (Excel) para cargar el historial semanal</li>
-                  <li>Importa <span className="text-emerald-400">Productos</span> (Excel) si necesitas margen, publicidad e ingresos históricos</li>
+                  <li>Usa <span className="text-[#3b82f6]">⚡ Sync API</span> para traer catálogo, últimas 8 semanas de ventas, ingresos y margen</li>
+                  <li>Importa <span className="text-[#3b82f6]">Velocidad de Ventas</span> (Excel) si necesitas stock o historial &gt;8 semanas</li>
+                  <li>Importa <span className="text-emerald-400">Productos</span> (Excel) si necesitas publicidad y ACOS histórico</li>
                   <li>El ACOS se calcula automáticamente en el Dashboard</li>
                 </ol>
               </div>
@@ -412,12 +415,12 @@ export default function ImportarPage() {
                 <div className="text-center space-y-2">
                   <p className="text-[#3b82f6] text-4xl font-black tracking-tight drop-shadow-lg">⚡ ¡LISTO!</p>
                   <p className="text-white font-semibold text-base">
-                    Sincronización exitosa: {syncResult.processedSkus} productos procesados
+                    Sincronización exitosa: {syncResult.processedSkus} SKUs · {syncResult.stats.orders.weeklySalesUpserted} semanas
                   </p>
                   <p className="text-white/40 text-xs">
                     {syncResult.source}
-                    {syncResult.stats.created > 0 ? ` · ${syncResult.stats.created} nuevos` : ""}
-                    {syncResult.stats.updated > 0 ? ` · ${syncResult.stats.updated} actualizados` : ""}
+                    {syncResult.stats.catalog.created > 0 ? ` · ${syncResult.stats.catalog.created} nuevos` : ""}
+                    {syncResult.stats.orders.skusWithSales > 0 ? ` · ${syncResult.stats.orders.skusWithSales} SKUs con ventas` : ""}
                     {syncResult.elapsed ? ` · ${syncResult.elapsed}` : ""}
                   </p>
                   {lastSyncAt && (
@@ -428,12 +431,12 @@ export default function ImportarPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-4 gap-3">
+              <div className="grid grid-cols-2 gap-3">
                 {[
-                  { label: "Total",        value: syncResult.stats.total,   color: "text-white/60"    },
-                  { label: "Actualizados", value: syncResult.stats.updated,  color: "text-emerald-400" },
-                  { label: "Creados",      value: syncResult.stats.created,  color: "text-[#3b82f6]"   },
-                  { label: "Omitidos",     value: syncResult.stats.skipped,  color: "text-yellow-400"  },
+                  { label: "SKUs catálogo",   value: syncResult.stats.catalog.total,                 color: "text-white/60"    },
+                  { label: "Con ventas",       value: syncResult.stats.orders.skusWithSales,           color: "text-emerald-400" },
+                  { label: "Semanas cargadas", value: syncResult.stats.orders.weeklySalesUpserted,    color: "text-[#3b82f6]"   },
+                  { label: "Creados nuevos",   value: syncResult.stats.catalog.created,               color: "text-yellow-400"  },
                 ].map(s => (
                   <div key={s.label} className="rounded-xl border border-white/5 bg-[#111111] p-3 text-center">
                     <p className={`text-2xl font-bold font-mono ${s.color}`}>{s.value}</p>

@@ -8,6 +8,7 @@ import {
   PGRateLimitError,
   PGDownError,
 } from "@/app/lib/profitguard-api";
+import { fetchOrderAggregations } from "@/app/lib/profitguard-orders";
 
 export const runtime     = "nodejs";
 export const maxDuration = 300;
@@ -32,7 +33,7 @@ export async function POST() {
     }
 
     // ── 2. Descarga completa del catálogo ────────────────────────
-    console.log("[sync-api] Iniciando sincronización de catálogo con ProfitGuard…");
+    console.log("[sync-api] Iniciando sincronización con ProfitGuard…");
     const pgProducts = await fetchAllProducts();
 
     if (pgProducts.length === 0) {
@@ -56,18 +57,9 @@ export async function POST() {
       items.push({ sku, nombre: extractNombre(pg, sku) });
     }
 
-    // ── 4. Upsert en lotes paralelos ─────────────────────────────
-    //
-    // IMPORTANTE: el endpoint /api/v1/products solo devuelve nombre y SKU.
-    // Los datos financieros (stock, margen, ACOS, ingresos) vienen del
-    // Excel import y NO deben sobreescribirse con ceros.
-    //
-    // update → solo actualiza el nombre (preserva todos los demás campos)
-    // create → crea el producto con defaults; los financieros se llenan
-    //          después con la importación de Excel.
-    //
+    // ── 4. Upsert catálogo en lotes paralelos ─────────────────────
     let updated = 0, created = 0;
-    const errors: string[] = [];
+    const catalogErrors: string[] = [];
 
     for (let i = 0; i < items.length; i += UPSERT_BATCH) {
       const batch = items.slice(i, i + UPSERT_BATCH);
@@ -105,28 +97,97 @@ export async function POST() {
       for (const r of results) {
         if (r === "created") created++;
         else if (r === "updated") updated++;
-        else { if (errors.length < 20) errors.push(r.replace("error:", "")); skipped++; }
+        else { if (catalogErrors.length < 20) catalogErrors.push(r.replace("error:", "")); skipped++; }
       }
 
       const done = Math.min(i + UPSERT_BATCH, items.length);
-      console.log(`[sync-api] Sincronizados ${done} de ${items.length} productos`);
+      console.log(`[sync-api] Catálogo: ${done}/${items.length} productos`);
+    }
+
+    // ── 5. Descargar órdenes (últimas 8 semanas) ─────────────────
+    console.log("[sync-api] Descargando historial de órdenes…");
+    const aggregations = await fetchOrderAggregations(8);
+    console.log(`[sync-api] Órdenes agregadas: ${aggregations.size} SKUs con ventas.`);
+
+    // ── 6. Actualizar métricas financieras + historial semanal ───
+    let ordersUpdated = 0;
+    let weeklySalesUpserted = 0;
+    const orderErrors: string[] = [];
+
+    // Obtener todos los productos de la DB para mapear SKU → id
+    const dbProducts = await prisma.product.findMany({
+      select: { id: true, sku: true },
+    });
+    const skuToId = new Map(dbProducts.map(p => [p.sku, p.id]));
+
+    for (const [sku, agg] of aggregations) {
+      const productId = skuToId.get(sku);
+      if (!productId) {
+        // SKU de órdenes que no existe en el catálogo — ignorar
+        continue;
+      }
+
+      try {
+        // Actualizar métricas financieras del producto
+        await prisma.product.update({
+          where: { id: productId },
+          data: {
+            ingresos:  Math.round(agg.totalRevenue),
+            ventas:    Math.round(agg.totalNetRevenue),
+            margenPct: Math.round(agg.margenPct * 10) / 10,
+          },
+        });
+        ordersUpdated++;
+
+        // Upsert ventas semanales (quantity = unidades vendidas esa semana)
+        const weekOps = agg.weeks.map(w =>
+          prisma.weeklySales.upsert({
+            where: {
+              productId_year_week: { productId, year: w.year, week: w.week },
+            },
+            update: { value: w.quantity },
+            create: { productId, year: w.year, week: w.week, value: w.quantity },
+          }),
+        );
+
+        // Ejecutar en lotes de 20 para no sobrecargar
+        for (let i = 0; i < weekOps.length; i += 20) {
+          await Promise.all(weekOps.slice(i, i + 20));
+          weeklySalesUpserted += Math.min(20, weekOps.length - i);
+        }
+      } catch (err) {
+        if (orderErrors.length < 20) orderErrors.push(`SKU "${sku}": ${String(err)}`);
+      }
     }
 
     const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
     console.log(
       `[sync-api] ✓ Completo en ${elapsed}s — ` +
-      `actualizados: ${updated}, creados: ${created}, omitidos: ${skipped}`,
+      `catálogo: ${updated} actualizados, ${created} creados, ${skipped} omitidos | ` +
+      `órdenes: ${ordersUpdated} SKUs actualizados, ${weeklySalesUpserted} semanas`,
     );
 
     return NextResponse.json({
-      success:       true,
-      source:        "ProfitGuard API",
-      syncedAt:      new Date().toISOString(),
-      elapsed:       `${elapsed}s`,
-      note:          "Solo sincroniza nombre y SKU. Importa Excel para stock, margen y ACOS.",
-      stats:         { total: pgProducts.length, updated, created, skipped },
+      success:    true,
+      source:     "ProfitGuard API",
+      syncedAt:   new Date().toISOString(),
+      elapsed:    `${elapsed}s`,
+      note:       "Sincroniza nombre/SKU del catálogo + ingresos, ventas, margen y historial semanal de órdenes. Stock y ACOS aún requieren importación Excel.",
+      stats: {
+        catalog: {
+          total:   pgProducts.length,
+          updated,
+          created,
+          skipped,
+        },
+        orders: {
+          skusWithSales:       aggregations.size,
+          productsUpdated:     ordersUpdated,
+          weeklySalesUpserted,
+        },
+      },
       processedSkus: updated + created,
-      errors,
+      errors: [...catalogErrors, ...orderErrors],
     });
 
   } catch (err) {
