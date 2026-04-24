@@ -18,11 +18,12 @@ interface ImportResult {
 }
 
 interface SyncResult {
-  source:       string;
-  syncedAt?:    string;
-  stats:        { total: number; updated: number; created: number; skipped: number };
+  source:        string;
+  syncedAt?:     string;
+  elapsed?:      string;
+  stats:         { total: number; updated: number; created: number; skipped: number };
   processedSkus: number;
-  errors:       string[];
+  errors:        string[];
 }
 
 function formatSyncDate(iso: string): string {
@@ -405,7 +406,10 @@ export default function ImportarPage() {
                 <div className="text-center space-y-2">
                   <p className="text-[#3b82f6] text-3xl font-black tracking-tight">⚡ ¡LISTO!</p>
                   <p className="text-white/70 text-sm font-medium">Datos sincronizados desde ProfitGuard API</p>
-                  <p className="text-white/30 text-xs">{syncResult.source} · {syncResult.processedSkus} SKUs procesados</p>
+                  <p className="text-white/30 text-xs">
+                    {syncResult.source} · {syncResult.processedSkus} de {syncResult.stats.total} SKUs sincronizados
+                    {syncResult.elapsed ? ` · ${syncResult.elapsed}` : ""}
+                  </p>
                   {lastSyncAt && (
                     <p className="text-emerald-400/60 text-[11px] font-mono">
                       ✓ Última sincronización exitosa: {formatSyncDate(lastSyncAt)}

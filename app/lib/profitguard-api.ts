@@ -184,28 +184,52 @@ export function extractAcos(p: PGProduct): number {
 //  Funciones públicas de la API
 // ──────────────────────────────────────────────────────────────
 
+const PER_PAGE     = 100;  // tamaño de página conservador
+const MAX_PAGES    = 100;  // tope de seguridad: 100 × 100 = 10 000 productos max
+
 /**
- * Obtiene todos los productos de ProfitGuard, manejando paginación automáticamente.
- * Soporta respuestas paginadas (page/per_page) y arrays simples.
+ * Obtiene TODOS los productos de ProfitGuard con paginación robusta.
+ *
+ * Estrategia (en orden de prioridad):
+ *   1. Si la respuesta trae `total_pages` / `last_page` → usamos ese número.
+ *   2. Si trae `total` / `total_count` → seguimos mientras fetched < total.
+ *   3. Si trae `next_page` (truthy) → hay más páginas.
+ *   4. Fallback: si el batch es menor que PER_PAGE → última página.
+ *
+ * Nunca rompe por tamaño de batch == PER_PAGE para evitar cortes prematuros.
  */
 export async function fetchAllProducts(): Promise<PGProduct[]> {
   const all: PGProduct[] = [];
-
-  // Intento 1: paginación explícita
   let page = 1;
-  while (true) {
-    const data = await pgFetch(`/api/v1/products?page=${page}&per_page=200`);
-    const batch = extractArray(data);
-    if (batch.length === 0) break;
-    all.push(...batch);
 
-    // Verificar si hay más páginas
-    const meta = data as Record<string, unknown>;
-    const totalPages = Number(meta.total_pages ?? meta.totalPages ?? meta.last_page ?? 1);
-    if (page >= totalPages || batch.length < 200) break;
+  for (let guard = 0; guard < MAX_PAGES; guard++) {
+    const data  = await pgFetch(`/api/v1/products?page=${page}&per_page=${PER_PAGE}`);
+    const batch = extractArray(data);
+
+    if (batch.length > 0) all.push(...batch);
+
+    // ── Leer metadatos de paginación ──────────────────────────
+    const meta       = (data && typeof data === "object" ? data : {}) as Record<string, unknown>;
+    const totalPages = Number(meta.total_pages ?? meta.totalPages ?? meta.last_page ?? 0);
+    const totalCount = Number(meta.total       ?? meta.total_count ?? meta.count    ?? 0);
+    const hasNext    = Boolean(meta.next_page  ?? meta.nextPage    ?? meta.next     ?? false);
+
+    console.log(
+      `[PG API] página ${page} → ${batch.length} productos | acumulado: ${all.length}` +
+      (totalCount  ? ` / ${totalCount} total` : "") +
+      (totalPages  ? ` (pág ${page}/${totalPages})` : ""),
+    );
+
+    // ── Condiciones de parada ─────────────────────────────────
+    if (batch.length === 0)                            break; // sin datos
+    if (totalPages  > 0 && page >= totalPages)         break; // llegamos a la última página
+    if (totalCount  > 0 && all.length >= totalCount)   break; // ya tenemos todos
+    if (!hasNext && totalPages === 0 && totalCount === 0 && batch.length < PER_PAGE) break; // fallback
+
     page++;
   }
 
+  console.log(`[PG API] Paginación completa: ${all.length} productos en ${page} páginas.`);
   return all;
 }
 
