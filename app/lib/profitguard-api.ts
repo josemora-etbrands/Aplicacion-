@@ -15,42 +15,18 @@ const API_KEY  = process.env.PROFITGUARD_API_KEY ?? "";
 
 export interface PGProduct {
   // Identificadores
-  id?:               number | string;
-  sku?:              string;
-  item_id?:          string;
+  id?:      number | string;
+  sku?:     string;
+  item_id?: string;
   // Nombre / título
-  nombre?:           string;
-  title?:            string;
-  name?:             string;
-  // Stock
-  stock?:            number | string;
-  stock_total?:      number | string;
-  quantity?:         number | string;
-  // Margen
-  margen_pct?:       number | string;
-  margin?:           number | string;
-  profit_margin?:    number | string;  // nombre ProfitGuard
-  gross_margin?:     number | string;
-  // Publicidad / ads spend
-  publicidad?:       number | string;
-  advertising?:      number | string;
-  ad_spend?:         number | string;
-  // Ventas (unidades)
-  ventas?:           number | string;
-  sales?:            number | string;
-  total_sales?:      number | string;  // nombre ProfitGuard
-  units_sold?:       number | string;
-  // Ingresos / revenue
-  ingresos?:         number | string;
-  revenue?:          number | string;
-  total_revenue?:    number | string;
-  // ACOS
-  acos?:             number | string;
-  acos_value?:       number | string;  // nombre ProfitGuard
-  // Velocidades
-  velocidad_inicial?: number | string;
-  velocidad_madura?:  number | string;
-  velocidad?:         { inicial?: number | string; madura?: number | string };
+  nombre?:  string;
+  title?:   string;
+  name?:    string;
+  // Costo unitario (estructura ProfitGuard)
+  unitCost?: { cents?: number; currency?: string; formattedValue?: string };
+  // Dimensiones (no usadas en el dashboard)
+  weight?: number; height?: number; length?: number; width?: number;
+  type?:   string;
 }
 
 export interface PGSyncResult {
@@ -159,58 +135,14 @@ function extractArray(data: unknown): PGProduct[] {
   return [];
 }
 
-/** Convierte cualquier valor a número float, tolerando strings y null */
-function toFloat(v: unknown): number {
-  if (v === null || v === undefined || v === "") return 0;
-  const n = parseFloat(String(v).replace(",", "."));
-  return isNaN(n) ? 0 : n;
-}
-
-/** Extrae el SKU de un producto, probando varios nombres de campo */
+/** Extrae el SKU — usa solo el campo `sku` real, nunca el id interno */
 export function extractSku(p: PGProduct): string | null {
-  return (p.sku ?? p.item_id ?? null)?.toString().trim() || null;
+  return p.sku?.toString().trim() || null;
 }
 
-/** Extrae el nombre/título de un producto */
+/** Extrae el nombre del producto */
 export function extractNombre(p: PGProduct, fallback: string): string {
-  return (p.nombre ?? p.title ?? p.name ?? "").toString().trim() || fallback;
-}
-
-/** Extrae el stock */
-export function extractStock(p: PGProduct): number {
-  const raw = p.stock ?? p.stock_total ?? p.quantity ?? null;
-  return Math.round(toFloat(raw));
-}
-
-/** Extrae el margen porcentual */
-export function extractMargen(p: PGProduct): number {
-  // profit_margin y gross_margin son los nombres que usa ProfitGuard
-  return toFloat(p.profit_margin ?? p.gross_margin ?? p.margen_pct ?? p.margin ?? null);
-}
-
-/** Extrae publicidad / ad spend */
-export function extractPublicidad(p: PGProduct): number {
-  return toFloat(p.publicidad ?? p.advertising ?? p.ad_spend ?? null);
-}
-
-/** Extrae ventas (unidades o importe según lo que envíe la API) */
-export function extractVentas(p: PGProduct): number {
-  // total_sales es el nombre que usa ProfitGuard
-  return toFloat(p.total_sales ?? p.ventas ?? p.sales ?? p.units_sold ?? null);
-}
-
-/** Extrae ingresos / revenue */
-export function extractIngresos(p: PGProduct): number {
-  return toFloat(p.total_revenue ?? p.revenue ?? p.ingresos ?? null);
-}
-
-/** Extrae ACOS — usa acos_value (ProfitGuard) o lo deriva de publicidad/ingresos */
-export function extractAcos(p: PGProduct): number {
-  const explicit = toFloat(p.acos_value ?? p.acos ?? null);
-  if (explicit > 0) return explicit;
-  const pub = extractPublicidad(p);
-  const ing = extractIngresos(p);
-  return ing > 0 ? pub / ing : 0;
+  return (p.name ?? p.nombre ?? p.title ?? "").toString().trim() || fallback;
 }
 
 // ──────────────────────────────────────────────────────────────

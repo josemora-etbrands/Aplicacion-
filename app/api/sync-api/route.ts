@@ -2,23 +2,17 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import {
   fetchAllProducts,
-  fetchProductStocks,
   extractSku,
   extractNombre,
-  extractStock,
-  extractMargen,
-  extractPublicidad,
-  extractVentas,
-  extractIngresos,
   PGAuthError,
   PGRateLimitError,
   PGDownError,
 } from "@/app/lib/profitguard-api";
 
 export const runtime     = "nodejs";
-export const maxDuration = 300; // 300s — suficiente para 500+ SKUs en Vercel Pro
+export const maxDuration = 300;
 
-const UPSERT_BATCH = 20; // upserts paralelos por lote
+const UPSERT_BATCH = 20;
 
 /** Limpia el SKU: trim + elimina caracteres de control invisibles */
 function sanitizeSku(raw: string): string {
@@ -37,8 +31,8 @@ export async function POST() {
       );
     }
 
-    // ── 2. Descarga completa del catálogo (paginación infinita) ──
-    console.log("[sync-api] Iniciando sincronización total con ProfitGuard…");
+    // ── 2. Descarga completa del catálogo ────────────────────────
+    console.log("[sync-api] Iniciando sincronización de catálogo con ProfitGuard…");
     const pgProducts = await fetchAllProducts();
 
     if (pgProducts.length === 0) {
@@ -47,18 +41,10 @@ export async function POST() {
         { status: 422 },
       );
     }
-    console.log(`[sync-api] Catálogo completo recibido: ${pgProducts.length} productos.`);
+    console.log(`[sync-api] Catálogo recibido: ${pgProducts.length} productos.`);
 
-    // ── 3. Stock dedicado (si el endpoint existe) ────────────────
-    const stockMap = await fetchProductStocks();
-
-    // ── 4. Preparar payload de upsert para cada SKU válido ───────
-    type UpsertItem = {
-      sku:        string;
-      sharedData: Record<string, unknown>;
-    };
-
-    const items: UpsertItem[] = [];
+    // ── 3. Preparar items válidos ────────────────────────────────
+    const items: Array<{ sku: string; nombre: string }> = [];
     let skipped = 0;
 
     for (const pg of pgProducts) {
@@ -67,28 +53,19 @@ export async function POST() {
       const sku = sanitizeSku(rawSku);
       if (!sku)    { skipped++; continue; }
 
-      const stock      = stockMap?.[sku] ?? extractStock(pg);
-      const publicidad = extractPublicidad(pg);
-      const ingresos   = extractIngresos(pg);
-      // ACOS = Publicidad / Ingresos (ratio; DiagnosticoTable lo muestra como %)
-      // SIN_STOCK se aplica en diagnosticar() cuando stock <= 0
-      const acos = ingresos > 0 ? publicidad / ingresos : 0;
-
-      items.push({
-        sku,
-        sharedData: {
-          nombre:    extractNombre(pg, sku),
-          stock,
-          margenPct: extractMargen(pg),
-          publicidad,
-          ventas:    extractVentas(pg),
-          ingresos,
-          acos,
-        },
-      });
+      items.push({ sku, nombre: extractNombre(pg, sku) });
     }
 
-    // ── 5. Upsert en lotes paralelos (Promise.all por bloque) ────
+    // ── 4. Upsert en lotes paralelos ─────────────────────────────
+    //
+    // IMPORTANTE: el endpoint /api/v1/products solo devuelve nombre y SKU.
+    // Los datos financieros (stock, margen, ACOS, ingresos) vienen del
+    // Excel import y NO deben sobreescribirse con ceros.
+    //
+    // update → solo actualiza el nombre (preserva todos los demás campos)
+    // create → crea el producto con defaults; los financieros se llenan
+    //          después con la importación de Excel.
+    //
     let updated = 0, created = 0;
     const errors: string[] = [];
 
@@ -96,18 +73,29 @@ export async function POST() {
       const batch = items.slice(i, i + UPSERT_BATCH);
 
       const results = await Promise.all(
-        batch.map(async ({ sku, sharedData }) => {
+        batch.map(async ({ sku, nombre }) => {
           try {
             const r = await prisma.product.upsert({
               where:  { sku },
-              update: sharedData,
-              create: { sku, velocidadInicial: 1.2, velocidadMadura: 4.7, ...sharedData },
+              // Solo actualizamos el nombre — preservamos stock, margen, ACOS, etc.
+              update: { nombre },
+              // Si el producto no existía, lo creamos con todos los defaults
+              create: {
+                sku,
+                nombre,
+                velocidadInicial: 1.2,
+                velocidadMadura:  4.7,
+                stock:      0,
+                margenPct:  0,
+                publicidad: 0,
+                ventas:     0,
+                ingresos:   0,
+                acos:       0,
+              },
               select: { createdAt: true, updatedAt: true },
             });
-            // createdAt ≈ updatedAt → registro nuevo
-            return Math.abs(r.createdAt.getTime() - r.updatedAt.getTime()) < 1000
-              ? "created" as const
-              : "updated" as const;
+            const isNew = Math.abs(r.createdAt.getTime() - r.updatedAt.getTime()) < 1000;
+            return isNew ? "created" as const : "updated" as const;
           } catch (err) {
             return `error:SKU "${sku}": ${String(err)}`;
           }
@@ -131,11 +119,12 @@ export async function POST() {
     );
 
     return NextResponse.json({
-      success:  true,
-      source:   "ProfitGuard API",
-      syncedAt: new Date().toISOString(),
-      elapsed:  `${elapsed}s`,
-      stats:    { total: pgProducts.length, updated, created, skipped },
+      success:       true,
+      source:        "ProfitGuard API",
+      syncedAt:      new Date().toISOString(),
+      elapsed:       `${elapsed}s`,
+      note:          "Solo sincroniza nombre y SKU. Importa Excel para stock, margen y ACOS.",
+      stats:         { total: pgProducts.length, updated, created, skipped },
       processedSkus: updated + created,
       errors,
     });
