@@ -184,52 +184,86 @@ export function extractAcos(p: PGProduct): number {
 //  Funciones públicas de la API
 // ──────────────────────────────────────────────────────────────
 
-const PER_PAGE     = 100;  // tamaño de página conservador
-const MAX_PAGES    = 100;  // tope de seguridad: 100 × 100 = 10 000 productos max
+const PER_PAGE = 100; // solicitamos 100; ProfitGuard puede devolver menos — está bien
 
 /**
- * Obtiene TODOS los productos de ProfitGuard con paginación robusta.
+ * Obtiene TODOS los productos de ProfitGuard con paginación dinámica infinita.
  *
- * Estrategia (en orden de prioridad):
- *   1. Si la respuesta trae `total_pages` / `last_page` → usamos ese número.
- *   2. Si trae `total` / `total_count` → seguimos mientras fetched < total.
- *   3. Si trae `next_page` (truthy) → hay más páginas.
- *   4. Fallback: si el batch es menor que PER_PAGE → última página.
+ * Reglas de salida (en orden):
+ *   1. Respuesta vacía ([])  → fin real del catálogo.
+ *   2. total_count alcanzado → ya tenemos todos.
+ *   3. total_pages alcanzado → última página explícita.
+ *   4. Duplicados puros      → la API repite la misma página (protección anti-loop).
  *
- * Nunca rompe por tamaño de batch == PER_PAGE para evitar cortes prematuros.
+ * NO hay límite fijo de páginas ni condición basada en tamaño de batch,
+ * para soportar catálogos de cualquier tamaño.
  */
 export async function fetchAllProducts(): Promise<PGProduct[]> {
-  const all: PGProduct[] = [];
-  let page = 1;
+  const all: PGProduct[]   = [];
+  const seenSkus           = new Set<string>(); // deduplicación para detectar loops
+  let   page               = 1;
+  let   totalCount         = 0; // actualizado con la primera respuesta
 
-  for (let guard = 0; guard < MAX_PAGES; guard++) {
+  while (true) {
     const data  = await pgFetch(`/api/v1/products?page=${page}&per_page=${PER_PAGE}`);
     const batch = extractArray(data);
 
-    if (batch.length > 0) all.push(...batch);
+    // ── Metadatos de paginación ───────────────────────────────
+    const meta = (data && typeof data === "object" ? data : {}) as Record<string, unknown>;
 
-    // ── Leer metadatos de paginación ──────────────────────────
-    const meta       = (data && typeof data === "object" ? data : {}) as Record<string, unknown>;
+    // Leer total_count solo la primera vez (es el mismo en todas las páginas)
+    if (totalCount === 0) {
+      totalCount = Number(meta.total ?? meta.total_count ?? meta.count ?? 0);
+    }
     const totalPages = Number(meta.total_pages ?? meta.totalPages ?? meta.last_page ?? 0);
-    const totalCount = Number(meta.total       ?? meta.total_count ?? meta.count    ?? 0);
-    const hasNext    = Boolean(meta.next_page  ?? meta.nextPage    ?? meta.next     ?? false);
 
     console.log(
-      `[PG API] página ${page} → ${batch.length} productos | acumulado: ${all.length}` +
-      (totalCount  ? ` / ${totalCount} total` : "") +
-      (totalPages  ? ` (pág ${page}/${totalPages})` : ""),
+      `[PG API] página ${page} → ${batch.length} items | acumulado: ${all.length}` +
+      (totalCount ? ` / ${totalCount}` : "") +
+      (totalPages ? ` (pág ${page}/${totalPages})` : ""),
     );
 
-    // ── Condiciones de parada ─────────────────────────────────
-    if (batch.length === 0)                            break; // sin datos
-    if (totalPages  > 0 && page >= totalPages)         break; // llegamos a la última página
-    if (totalCount  > 0 && all.length >= totalCount)   break; // ya tenemos todos
-    if (!hasNext && totalPages === 0 && totalCount === 0 && batch.length < PER_PAGE) break; // fallback
+    // ── PARADA 1: respuesta vacía = fin real del catálogo ─────
+    if (batch.length === 0) {
+      console.log("[PG API] Respuesta vacía — fin del catálogo.");
+      break;
+    }
+
+    // ── Filtrar duplicados (ítems ya vistos en páginas anteriores) ─
+    const newItems = batch.filter(p => {
+      const sku = extractSku(p);
+      return sku !== null && !seenSkus.has(sku);
+    });
+
+    // ── PARADA 2: la API repite página (anti loop infinito) ───
+    if (newItems.length === 0) {
+      console.log(`[PG API] Página ${page} solo contiene duplicados — fin del catálogo.`);
+      break;
+    }
+
+    // Registrar SKUs vistos y acumular
+    for (const p of newItems) {
+      const sku = extractSku(p);
+      if (sku) seenSkus.add(sku);
+    }
+    all.push(...newItems);
+
+    // ── PARADA 3: total_count alcanzado ───────────────────────
+    if (totalCount > 0 && all.length >= totalCount) {
+      console.log(`[PG API] total_count alcanzado (${all.length}/${totalCount}).`);
+      break;
+    }
+
+    // ── PARADA 4: última página explícita ─────────────────────
+    if (totalPages > 0 && page >= totalPages) {
+      console.log(`[PG API] Última página alcanzada (${page}/${totalPages}).`);
+      break;
+    }
 
     page++;
   }
 
-  console.log(`[PG API] Paginación completa: ${all.length} productos en ${page} páginas.`);
+  console.log(`[PG API] ✓ Paginación completa: ${all.length} productos únicos en ${page} página(s).`);
   return all;
 }
 

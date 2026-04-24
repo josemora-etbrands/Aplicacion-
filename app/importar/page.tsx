@@ -52,10 +52,10 @@ const PHASES = [
 
 const SYNC_PHASES = [
   "Conectando con ProfitGuard…",
-  "Descargando productos…",
-  "Sincronizando stock…",
-  "Actualizando base de datos…",
-  "Finalizando…",
+  "Calculando catálogo completo…",
+  "Descargando páginas de productos…",
+  "Actualizando base de datos en lotes…",
+  "Sincronización exitosa ✓",
 ];
 
 const REPORT_META: Record<ReportType, { label: string; color: string; accent: string }> = {
@@ -91,12 +91,18 @@ export default function ImportarPage() {
     setProgress(0);
     setPhase(0);
     let current = 0;
+    // Para sync (catálogo grande) avanzamos más despacio — tope en 82%
+    const isSyncing = status === "syncing";
+    const step      = isSyncing ? () => Math.random() * 1.5 + 0.5 : () => Math.random() * 6 + 2;
+    const cap       = isSyncing ? 82 : 88;
+    const tick      = isSyncing ? 500 : 350;
+
     intervalRef.current = setInterval(() => {
-      current += Math.random() * 6 + 2;
-      if (current >= 88) current = 88;
+      current += step();
+      if (current >= cap) current = cap;
       setProgress(current);
       setPhase(Math.min(Math.floor(current / 20), phases.length - 1));
-    }, 350);
+    }, tick);
     return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status]);
@@ -404,10 +410,14 @@ export default function ImportarPage() {
                   <div className="h-full bg-[#3b82f6] rounded-full w-full transition-all duration-700" />
                 </div>
                 <div className="text-center space-y-2">
-                  <p className="text-[#3b82f6] text-3xl font-black tracking-tight">⚡ ¡LISTO!</p>
-                  <p className="text-white/70 text-sm font-medium">Datos sincronizados desde ProfitGuard API</p>
-                  <p className="text-white/30 text-xs">
-                    {syncResult.source} · {syncResult.processedSkus} de {syncResult.stats.total} SKUs sincronizados
+                  <p className="text-[#3b82f6] text-4xl font-black tracking-tight drop-shadow-lg">⚡ ¡LISTO!</p>
+                  <p className="text-white font-semibold text-base">
+                    Sincronización exitosa: {syncResult.processedSkus} productos procesados
+                  </p>
+                  <p className="text-white/40 text-xs">
+                    {syncResult.source}
+                    {syncResult.stats.created > 0 ? ` · ${syncResult.stats.created} nuevos` : ""}
+                    {syncResult.stats.updated > 0 ? ` · ${syncResult.stats.updated} actualizados` : ""}
                     {syncResult.elapsed ? ` · ${syncResult.elapsed}` : ""}
                   </p>
                   {lastSyncAt && (
