@@ -1,60 +1,45 @@
 /**
  * Agregación de órdenes desde ProfitGuard API
- * Calcula ventas semanales, ingresos y margen por SKU
- * desde el historial de órdenes pagadas.
+ * Calcula ventas semanales, ingresos y margen por SKU.
  */
 
 const BASE_URL = (process.env.PROFITGUARD_API_URL ?? "https://app.profitguard.cl").replace(/\/$/, "");
 const API_KEY  = process.env.PROFITGUARD_API_KEY ?? "";
 
-// Límite de seguridad: máximo de páginas a descargar
-const MAX_PAGES = 25;
+const MAX_PAGES = 60;   // seguridad anti-loop
+const PARALLEL  = 5;    // páginas simultáneas por lote
 
 // ── Tipos ────────────────────────────────────────────────────────
 
-interface MoneyField {
-  cents:          number;
-  currency:       string;
-  formattedValue: string;
-}
+interface MoneyField { cents: number; currency: string; formattedValue: string; }
 
 interface PGOrderItem {
-  quantity:        number;
-  unitPrice:       MoneyField;
-  commission:      MoneyField;
-  product: {
-    sku:      string;
-    name:     string;
-    unitCost: MoneyField;
-  };
+  quantity:   number;
+  unitPrice:  MoneyField;
+  commission: MoneyField;
+  product: { sku: string; name: string; unitCost: MoneyField; };
 }
 
 interface PGOrder {
   id:         number;
-  date:       string; // "YYYY-MM-DD"
+  date:       string;   // "YYYY-MM-DD"
   status:     string;
   orderItems: PGOrderItem[];
 }
 
-export interface SkuWeekSales {
-  year:     number;
-  week:     number;
-  quantity: number;
-}
-
+export interface SkuWeekSales  { year: number; week: number; quantity: number; }
 export interface SkuAggregation {
   sku:             string;
   nombre:          string;
   weeks:           SkuWeekSales[];
-  totalRevenue:    number; // CLP bruto (precio × qty)
-  totalNetRevenue: number; // CLP neto (precio - comisión) × qty
+  totalRevenue:    number;
+  totalNetRevenue: number;
   totalUnits:      number;
-  margenPct:       number; // 0-100
+  margenPct:       number;
 }
 
 // ── Helpers ──────────────────────────────────────────────────────
 
-/** Convierte "YYYY-MM-DD" a { year, week } ISO */
 function dateToISOWeek(dateStr: string): { year: number; week: number } {
   const [y, m, d] = dateStr.split("-").map(Number);
   const date = new Date(Date.UTC(y, m - 1, d));
@@ -64,7 +49,6 @@ function dateToISOWeek(dateStr: string): { year: number; week: number } {
   return { year: date.getUTCFullYear(), week };
 }
 
-/** Fecha YYYY-MM-DD de hace N semanas */
 function weeksAgo(n: number): string {
   const d = new Date();
   d.setDate(d.getDate() - n * 7);
@@ -74,9 +58,7 @@ function weeksAgo(n: number): string {
 async function pgFetchPage(page: number, cutoffDate: string): Promise<unknown> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 15_000);
-
   try {
-    // El parámetro correcto según la doc oficial es page_size (no per_page)
     const url = `${BASE_URL}/api/v1/orders?page=${page}&page_size=100&status=paid&from=${cutoffDate}`;
     const res = await fetch(url, {
       headers: { Authorization: `Bearer ${API_KEY}`, Accept: "application/json" },
@@ -93,39 +75,43 @@ async function pgFetchPage(page: number, cutoffDate: string): Promise<unknown> {
 function extractOrders(data: unknown): PGOrder[] {
   if (!data || typeof data !== "object") return [];
   const obj = data as Record<string, unknown>;
-  if (Array.isArray(obj.items))  return obj.items as PGOrder[];
-  if (Array.isArray(obj.data))   return obj.data  as PGOrder[];
-  if (Array.isArray(data))       return data       as PGOrder[];
+  if (Array.isArray(obj.items)) return obj.items as PGOrder[];
+  if (Array.isArray(obj.data))  return obj.data  as PGOrder[];
+  if (Array.isArray(data))      return data       as PGOrder[];
   return [];
 }
 
-function extractTotalPages(data: unknown): number {
-  if (!data || typeof data !== "object") return 0;
-  const obj = data as Record<string, unknown>;
+function extractMeta(data: unknown): { totalPages: number; totalCount: number } {
+  if (!data || typeof data !== "object") return { totalPages: 0, totalCount: 0 };
+  const obj  = data as Record<string, unknown>;
   const meta = obj.meta as Record<string, unknown> | undefined;
-  return Number(
-    meta?.total_pages ?? meta?.totalPages ??
-    obj.total_pages   ?? obj.totalPages   ?? 0,
-  );
+  return {
+    totalPages: Number(meta?.total_pages ?? obj.total_pages ?? 0),
+    totalCount: Number(meta?.total_count ?? obj.total_count ?? 0),
+  };
 }
 
-/** Agrega las órdenes de una página en el mapa de agregaciones */
+/** Agrega las órdenes de una página. Devuelve la fecha más reciente y más antigua vistas. */
 function processOrders(
-  orders: PGOrder[],
-  cutoffDate: string,
+  orders:       PGOrder[],
+  cutoffDate:   string,
   aggregations: Map<string, SkuAggregation>,
-): { processed: number; allOlder: boolean } {
-  let processed = 0;
-  let allOlder  = true;
+): { processed: number; newestDate: string; oldestDate: string } {
+  let processed   = 0;
+  let newestDate  = "";
+  let oldestDate  = "9999-99-99";
 
   for (const order of orders) {
-    if (order.status !== "paid") continue;
-    if (!order.date)             continue;
+    if (order.status !== "paid" || !order.date) continue;
+
+    // Rastrear fechas para detectar dirección de orden
+    if (order.date > newestDate) newestDate = order.date;
+    if (order.date < oldestDate) oldestDate = order.date;
+
+    // Solo procesar órdenes dentro del período
     if (order.date < cutoffDate) continue;
 
-    allOlder = false;
     processed++;
-
     const { year, week } = dateToISOWeek(order.date);
 
     for (const item of order.orderItems ?? []) {
@@ -138,32 +124,24 @@ function processOrders(
       const qty      = item.quantity ?? 1;
 
       const unitMargin = priceCLP > 0
-        ? ((priceCLP - costCLP - commCLP) / priceCLP) * 100
-        : 0;
+        ? ((priceCLP - costCLP - commCLP) / priceCLP) * 100 : 0;
 
       if (!aggregations.has(sku)) {
         aggregations.set(sku, {
-          sku,
-          nombre:          item.product.name?.trim() ?? sku,
-          weeks:           [],
-          totalRevenue:    0,
-          totalNetRevenue: 0,
-          totalUnits:      0,
-          margenPct:       0,
+          sku, nombre: item.product.name?.trim() ?? sku,
+          weeks: [], totalRevenue: 0, totalNetRevenue: 0,
+          totalUnits: 0, margenPct: 0,
         });
       }
 
       const agg = aggregations.get(sku)!;
       const prevRevenue = agg.totalRevenue;
-
       agg.totalRevenue    += priceCLP * qty;
       agg.totalNetRevenue += (priceCLP - commCLP) * qty;
       agg.totalUnits      += qty;
-
       if (agg.totalRevenue > 0) {
         agg.margenPct =
-          (agg.margenPct * prevRevenue + unitMargin * priceCLP * qty) /
-          agg.totalRevenue;
+          (agg.margenPct * prevRevenue + unitMargin * priceCLP * qty) / agg.totalRevenue;
       }
 
       const slot = agg.weeks.find(w => w.year === year && w.week === week);
@@ -172,72 +150,103 @@ function processOrders(
     }
   }
 
-  return { processed, allOlder };
+  return { processed, newestDate, oldestDate };
 }
 
 // ── Función principal ─────────────────────────────────────────────
 
 /**
- * Descarga órdenes pagadas de las últimas `weeks` semanas y las agrega
- * por SKU + semana ISO.
+ * Descarga órdenes pagadas de las últimas `weeks` semanas.
  *
- * Estrategia de paginación paralela:
- *   1. Descarga página 1 para conocer total_pages.
- *   2. Descarga el resto de páginas EN PARALELO (lotes de 5).
- *   3. Se detiene en MAX_PAGES como seguridad anti-loop.
+ * Maneja automáticamente el orden de la API:
+ * - Si responde DESC (más recientes primero): avanza hacia el pasado
+ * - Si responde ASC  (más antiguas primero):  salta a la última página
  */
 export async function fetchOrderAggregations(
   weeks = 6,
 ): Promise<Map<string, SkuAggregation>> {
   const cutoffDate = weeksAgo(weeks);
-  console.log(`[PG Orders] Descargando órdenes desde ${cutoffDate} (últimas ${weeks} semanas)…`);
+  console.log(`[PG Orders] Cutoff: ${cutoffDate} (últimas ${weeks} semanas)`);
 
   const aggregations = new Map<string, SkuAggregation>();
 
-  // ── Página 1: descubrir total_pages ──────────────────────────
+  // ── Página 1: detectar total_pages y dirección de orden ──────
   const firstData  = await pgFetchPage(1, cutoffDate);
   const firstBatch = extractOrders(firstData);
-  const totalPages = Math.min(extractTotalPages(firstData) || 1, MAX_PAGES);
+  const { totalPages: rawTotal } = extractMeta(firstData);
+  const totalPages = Math.min(rawTotal || 1, MAX_PAGES);
 
-  console.log(`[PG Orders] Total páginas: ${totalPages} | página 1: ${firstBatch.length} órdenes`);
-
-  const { allOlder: firstAllOlder } = processOrders(firstBatch, cutoffDate, aggregations);
-
-  // Si la primera página ya es toda anterior al cutoff, terminar
-  if (firstAllOlder || totalPages <= 1) {
-    console.log(`[PG Orders] ✓ ${aggregations.size} SKUs (1 página)`);
+  if (firstBatch.length === 0) {
+    console.log("[PG Orders] Sin órdenes en la respuesta.");
     return aggregations;
   }
 
-  // ── Páginas 2..totalPages en paralelo (lotes de 5) ───────────
-  const PARALLEL = 5;
-  for (let start = 2; start <= totalPages; start += PARALLEL) {
+  const { newestDate: firstNewest, oldestDate: firstOldest } =
+    processOrders(firstBatch, cutoffDate, aggregations);
+
+  console.log(
+    `[PG Orders] Página 1/${totalPages} | ` +
+    `fechas: ${firstOldest} → ${firstNewest} | ` +
+    `cutoff: ${cutoffDate}`,
+  );
+
+  // Detectar si la API ordena ASC (oldest first)
+  // Si la página 1 tiene órdenes TODAS más viejas que el cutoff → orden ASC
+  const pageIsAscending = firstNewest < cutoffDate;
+
+  let startPage: number;
+  let endPage:   number;
+
+  if (pageIsAscending) {
+    // La API devuelve las más antiguas primero → empezar desde la última página
+    // hacia atrás para llegar a las órdenes recientes.
+    const lastPage = rawTotal > 0 ? Math.min(rawTotal, MAX_PAGES) : MAX_PAGES;
+    startPage = Math.max(lastPage - MAX_PAGES + 1, 1);
+    endPage   = lastPage;
+    console.log(`[PG Orders] Orden ASC detectado → fetching páginas ${startPage}–${endPage}`);
+  } else {
+    // La API devuelve las más recientes primero (DESC) → avanzar desde página 2
+    startPage = 2;
+    endPage   = totalPages;
+    console.log(`[PG Orders] Orden DESC → fetching páginas 2–${endPage}`);
+  }
+
+  // ── Fetch del resto de páginas en lotes paralelos ────────────
+  for (let p = startPage; p <= endPage; p += PARALLEL) {
+    // Skip página 1 si ya la procesamos (DESC mode)
     const pageNums = Array.from(
-      { length: Math.min(PARALLEL, totalPages - start + 1) },
-      (_, i) => start + i,
+      { length: Math.min(PARALLEL, endPage - p + 1) },
+      (_, i) => p + i,
+    ).filter(n => n !== 1); // evitar re-procesar pág 1
+
+    if (pageNums.length === 0) continue;
+
+    const pages = await Promise.all(
+      pageNums.map(n => pgFetchPage(n, cutoffDate).catch(() => null)),
     );
 
-    const pages = await Promise.all(pageNums.map(p => pgFetchPage(p, cutoffDate)));
-
-    let anyReachedCutoff = false;
-    for (let i = 0; i < pages.length; i++) {
-      const orders = extractOrders(pages[i]);
-      const { allOlder } = processOrders(orders, cutoffDate, aggregations);
-      if (allOlder) anyReachedCutoff = true;
+    let reachedCutoff = false;
+    for (const pageData of pages) {
+      if (!pageData) continue;
+      const orders = extractOrders(pageData);
+      const { oldestDate } = processOrders(orders, cutoffDate, aggregations);
+      // En modo DESC: si la página más antigua está antes del cutoff, ya no hay más datos útiles
+      if (!pageIsAscending && oldestDate < cutoffDate && oldestDate !== "9999-99-99") {
+        reachedCutoff = true;
+      }
     }
 
     console.log(
-      `[PG Orders] Páginas ${pageNums[0]}–${pageNums[pageNums.length - 1]} procesadas | ` +
+      `[PG Orders] Páginas ${pageNums[0]}–${pageNums[pageNums.length - 1]} | ` +
       `${aggregations.size} SKUs acumulados`,
     );
 
-    // Si alguna página de este lote era toda anterior al cutoff, terminamos
-    if (anyReachedCutoff) {
-      console.log("[PG Orders] Cutoff alcanzado — deteniendo paginación.");
+    if (reachedCutoff) {
+      console.log("[PG Orders] Cutoff alcanzado — fin de paginación.");
       break;
     }
   }
 
-  console.log(`[PG Orders] ✓ ${aggregations.size} SKUs con datos de ventas.`);
+  console.log(`[PG Orders] ✓ ${aggregations.size} SKUs con ventas.`);
   return aggregations;
 }
