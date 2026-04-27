@@ -24,6 +24,7 @@ interface SyncResult {
   stats: {
     catalog: { total: number; updated: number; created: number; skipped: number };
     orders:  { skusWithSales: number; productsUpdated: number; weeklySalesUpserted: number };
+    stock?:  { skusWithStock: number; productsUpdated: number };
   };
   processedSkus: number;
   errors:        string[];
@@ -283,9 +284,9 @@ export default function ImportarPage() {
               <div className="rounded-xl border border-white/5 bg-[#111111] p-5 space-y-3">
                 <p className="text-white/40 text-xs font-semibold uppercase tracking-wider">Orden recomendado</p>
                 <ol className="space-y-2 text-white/35 text-xs list-decimal list-inside">
-                  <li>Usa <span className="text-[#3b82f6]">⚡ Sync API</span> para traer catálogo, últimas 8 semanas de ventas, ingresos y margen</li>
-                  <li>Importa <span className="text-[#3b82f6]">Velocidad de Ventas</span> (Excel) si necesitas stock o historial &gt;8 semanas</li>
-                  <li>Importa <span className="text-emerald-400">Productos</span> (Excel) si necesitas publicidad y ACOS histórico</li>
+                  <li>Usa <span className="text-[#3b82f6]">⚡ Sync API</span> para traer catálogo, stock ML, últimas 6 semanas de ventas, ingresos y margen</li>
+                  <li>Importa <span className="text-[#3b82f6]">Velocidad de Ventas</span> (Excel) solo si necesitas historial &gt;6 semanas o velocidades manuales</li>
+                  <li>Importa <span className="text-emerald-400">Productos</span> (Excel) para publicidad y ACOS (no disponible en API)</li>
                   <li>El ACOS se calcula automáticamente en el Dashboard</li>
                 </ol>
               </div>
@@ -433,10 +434,10 @@ export default function ImportarPage() {
 
               <div className="grid grid-cols-2 gap-3">
                 {[
-                  { label: "SKUs catálogo",   value: syncResult.stats.catalog.total,                 color: "text-white/60"    },
-                  { label: "Con ventas",       value: syncResult.stats.orders.skusWithSales,           color: "text-emerald-400" },
-                  { label: "Semanas cargadas", value: syncResult.stats.orders.weeklySalesUpserted,    color: "text-[#3b82f6]"   },
-                  { label: "Creados nuevos",   value: syncResult.stats.catalog.created,               color: "text-yellow-400"  },
+                  { label: "SKUs catálogo",   value: syncResult.stats.catalog.total,                          color: "text-white/60"    },
+                  { label: "Con ventas",       value: syncResult.stats.orders.skusWithSales,                   color: "text-emerald-400" },
+                  { label: "Semanas cargadas", value: syncResult.stats.orders.weeklySalesUpserted,             color: "text-[#3b82f6]"   },
+                  { label: "Stock actualizado",value: syncResult.stats.stock?.productsUpdated ?? 0,            color: "text-yellow-400"  },
                 ].map(s => (
                   <div key={s.label} className="rounded-xl border border-white/5 bg-[#111111] p-3 text-center">
                     <p className={`text-2xl font-bold font-mono ${s.color}`}>{s.value}</p>

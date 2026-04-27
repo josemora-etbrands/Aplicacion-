@@ -9,18 +9,17 @@ import {
   PGDownError,
 } from "@/app/lib/profitguard-api";
 import { fetchOrderAggregations } from "@/app/lib/profitguard-orders";
+import { fetchMLStock }           from "@/app/lib/profitguard-passthrough";
 
 export const runtime     = "nodejs";
 export const maxDuration = 300;
 
-const UPSERT_BATCH = 50; // más grande = menos roundtrips a la DB
+const UPSERT_BATCH = 50;
 
-/** Limpia el SKU: trim + elimina caracteres de control invisibles */
 function sanitizeSku(raw: string): string {
   return raw.trim().replace(/[\x00-\x1F\x7F]/g, "");
 }
 
-/** Ejecuta un array de promesas en lotes de `size` en paralelo */
 async function runInBatches<T>(ops: (() => Promise<T>)[], size: number): Promise<T[]> {
   const results: T[] = [];
   for (let i = 0; i < ops.length; i += size) {
@@ -34,7 +33,6 @@ export async function POST() {
   const startTime = Date.now();
 
   try {
-    // ── 1. Verificar configuración ───────────────────────────────
     if (!process.env.PROFITGUARD_API_KEY) {
       return NextResponse.json(
         { error: "PROFITGUARD_API_KEY no configurada. Agrégala en Vercel → Settings → Environment Variables." },
@@ -42,11 +40,15 @@ export async function POST() {
       );
     }
 
-    // ── 2. Descargar catálogo + órdenes EN PARALELO ──────────────
+    // ── 1. Descargar catálogo + órdenes + stock ML EN PARALELO ───
     console.log("[sync-api] Iniciando sincronización con ProfitGuard…");
-    const [pgProducts, aggregations] = await Promise.all([
+    const [pgProducts, aggregations, stockMap] = await Promise.all([
       fetchAllProducts(),
-      fetchOrderAggregations(6), // últimas 6 semanas
+      fetchOrderAggregations(6),
+      fetchMLStock().catch(err => {
+        console.warn("[sync-api] Stock ML no disponible:", String(err));
+        return new Map<string, number>();
+      }),
     ]);
 
     if (pgProducts.length === 0) {
@@ -57,10 +59,11 @@ export async function POST() {
     }
     console.log(
       `[sync-api] Recibidos: ${pgProducts.length} productos | ` +
-      `${aggregations.size} SKUs con órdenes`,
+      `${aggregations.size} SKUs con órdenes | ` +
+      `${stockMap.size} SKUs con stock ML`,
     );
 
-    // ── 3. Preparar items válidos ────────────────────────────────
+    // ── 2. Preparar items del catálogo ────────────────────────────
     const items: Array<{ sku: string; nombre: string }> = [];
     let skipped = 0;
 
@@ -72,7 +75,7 @@ export async function POST() {
       items.push({ sku, nombre: extractNombre(pg, sku) });
     }
 
-    // ── 4. Upsert catálogo en lotes paralelos ─────────────────────
+    // ── 3. Upsert catálogo ────────────────────────────────────────
     let updated = 0, created = 0;
     const catalogErrors: string[] = [];
 
@@ -83,8 +86,7 @@ export async function POST() {
           update: { nombre },
           create: {
             sku, nombre,
-            velocidadInicial: 1.2,
-            velocidadMadura:  4.7,
+            velocidadInicial: 1.2, velocidadMadura: 4.7,
             stock: 0, margenPct: 0, publicidad: 0,
             ventas: 0, ingresos: 0, acos: 0,
           },
@@ -105,24 +107,27 @@ export async function POST() {
     }
     console.log(`[sync-api] Catálogo: ${updated} actualizados, ${created} creados, ${skipped} omitidos`);
 
-    // ── 5. Mapear SKU → productId (solo los que tienen órdenes) ──
-    const skusWithOrders = Array.from(aggregations.keys());
+    // ── 4. Cargar IDs de todos los productos ──────────────────────
+    const allSkus = [
+      ...new Set([
+        ...Array.from(aggregations.keys()),
+        ...Array.from(stockMap.keys()),
+      ]),
+    ];
     const dbProducts = await prisma.product.findMany({
-      where:  { sku: { in: skusWithOrders } },
+      where:  { sku: { in: allSkus } },
       select: { id: true, sku: true },
     });
     const skuToId = new Map(dbProducts.map(p => [p.sku, p.id]));
 
-    // ── 6. Preparar TODAS las operaciones de órdenes de una vez ──
+    // ── 5. Preparar operaciones de órdenes ────────────────────────
     const productUpdateOps: (() => Promise<unknown>)[] = [];
     const weeklyOps: (() => Promise<unknown>)[]        = [];
-    let ordersSkipped = 0;
 
     for (const [sku, agg] of aggregations) {
       const productId = skuToId.get(sku);
-      if (!productId) { ordersSkipped++; continue; }
+      if (!productId) continue;
 
-      // Actualizar métricas del producto
       productUpdateOps.push(() =>
         prisma.product.update({
           where: { id: productId },
@@ -134,7 +139,6 @@ export async function POST() {
         }),
       );
 
-      // Una operación por semana
       for (const w of agg.weeks) {
         weeklyOps.push(() =>
           prisma.weeklySales.upsert({
@@ -146,31 +150,50 @@ export async function POST() {
       }
     }
 
-    // ── 7. Ejecutar actualizaciones de productos y semanas EN PARALELO ─
+    // ── 6. Preparar operaciones de stock ML ───────────────────────
+    const stockOps: (() => Promise<unknown>)[] = [];
+    let stockUpdated = 0;
+
+    for (const [sku, stock] of stockMap) {
+      const productId = skuToId.get(sku);
+      if (!productId) continue;
+      stockOps.push(() =>
+        prisma.product.update({
+          where: { id: productId },
+          data:  { stock },
+        }),
+      );
+      stockUpdated++;
+    }
+
+    // ── 7. Ejecutar todo en paralelo ──────────────────────────────
     const [, weekResults] = await Promise.all([
       runInBatches(productUpdateOps, UPSERT_BATCH),
-      runInBatches(weeklyOps, UPSERT_BATCH),
+      runInBatches(weeklyOps,        UPSERT_BATCH),
+      runInBatches(stockOps,         UPSERT_BATCH),
     ]);
 
-    const ordersUpdated      = productUpdateOps.length;
+    const ordersUpdated       = productUpdateOps.length;
     const weeklySalesUpserted = weekResults.length;
 
     const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
     console.log(
       `[sync-api] ✓ Completo en ${elapsed}s — ` +
       `catálogo: ${updated}u/${created}c | ` +
-      `órdenes: ${ordersUpdated} SKUs, ${weeklySalesUpserted} semanas`,
+      `órdenes: ${ordersUpdated} SKUs, ${weeklySalesUpserted} semanas | ` +
+      `stock: ${stockUpdated} SKUs`,
     );
 
     return NextResponse.json({
       success:  true,
-      source:   "ProfitGuard API",
+      source:   "ProfitGuard + Mercado Libre API",
       syncedAt: new Date().toISOString(),
       elapsed:  `${elapsed}s`,
-      note:     "Sincroniza catálogo + ingresos, ventas, margen e historial semanal de órdenes. Stock y ACOS requieren importación Excel.",
+      note:     "Sincroniza catálogo, ingresos, ventas, margen, historial semanal y stock. Solo ACOS y velocidades requieren Excel.",
       stats: {
         catalog: { total: pgProducts.length, updated, created, skipped },
         orders:  { skusWithSales: aggregations.size, productsUpdated: ordersUpdated, weeklySalesUpserted },
+        stock:   { skusWithStock: stockMap.size, productsUpdated: stockUpdated },
       },
       processedSkus: updated + created,
       errors: catalogErrors,
