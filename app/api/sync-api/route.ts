@@ -40,13 +40,16 @@ export async function POST() {
       );
     }
 
-    // ── 1. Descargar catálogo + órdenes + stock ML EN PARALELO ───
-    console.log("[sync-api] Iniciando sincronización con ProfitGuard…");
-    const [pgProducts, aggregations, stockMap] = await Promise.all([
+    // ── 1a. Catálogo + stock en paralelo (fase rápida) ───────────
+    console.log("[sync-api] Fase 1: catálogo + stock…");
+    const [pgProducts, stockMap] = await Promise.all([
       fetchAllProducts(),
-      fetchOrderAggregations(6),
-      fetchProductStocks(), // /api/v1/product_stocks — suma todos los canales
+      fetchProductStocks(),
     ]);
+
+    // ── 1b. Órdenes en serie (fase lenta, respeta rate limit) ────
+    console.log("[sync-api] Fase 2: historial de órdenes…");
+    const aggregations = await fetchOrderAggregations(6);
 
     if (pgProducts.length === 0) {
       return NextResponse.json(
@@ -55,9 +58,9 @@ export async function POST() {
       );
     }
     console.log(
-      `[sync-api] Recibidos: ${pgProducts.length} productos | ` +
-      `${aggregations.size} SKUs con órdenes | ` +
-      `${stockMap.size} SKUs con stock ML`,
+      `[sync-api] Catálogo: ${pgProducts.length} productos | ` +
+      `Stock: ${stockMap.size} SKUs | ` +
+      `Órdenes: ${aggregations.size} SKUs con ventas`,
     );
 
     // ── 2. Preparar items del catálogo ────────────────────────────

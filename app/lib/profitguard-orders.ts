@@ -6,8 +6,9 @@
 const BASE_URL = (process.env.PROFITGUARD_API_URL ?? "https://app.profitguard.cl").replace(/\/$/, "");
 const API_KEY  = process.env.PROFITGUARD_API_KEY ?? "";
 
-const MAX_PAGES = 200;  // seguridad anti-loop (200 × 100 = 20k órdenes)
-const PARALLEL  = 5;    // páginas simultáneas por lote
+const MAX_PAGES    = 100; // 100 × 100 = 10k órdenes máximo
+const PARALLEL     = 5;  // páginas simultáneas por lote
+const BATCH_DELAY  = 1500; // ms entre lotes — respeta rate limit 120 req/min
 
 // ── Tipos ────────────────────────────────────────────────────────
 
@@ -244,6 +245,9 @@ export async function fetchOrderAggregations(
       console.log("[PG Orders] Cutoff alcanzado — fin de paginación.");
       break;
     }
+
+    // Pausa entre lotes para respetar rate limit (120 req/min)
+    await new Promise(r => setTimeout(r, BATCH_DELAY));
   }
 
   console.log(`[PG Orders] ✓ ${aggregations.size} SKUs con ventas.`);
