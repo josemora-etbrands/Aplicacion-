@@ -6,7 +6,7 @@
 const BASE_URL = (process.env.PROFITGUARD_API_URL ?? "https://app.profitguard.cl").replace(/\/$/, "");
 const API_KEY  = process.env.PROFITGUARD_API_KEY ?? "";
 
-const MAX_PAGES = 60;   // seguridad anti-loop
+const MAX_PAGES = 200;  // seguridad anti-loop (200 × 100 = 20k órdenes)
 const PARALLEL  = 5;    // páginas simultáneas por lote
 
 // ── Tipos ────────────────────────────────────────────────────────
@@ -225,15 +225,13 @@ export async function fetchOrderAggregations(
       pageNums.map(n => pgFetchPage(n, cutoffDate).catch(() => null)),
     );
 
-    let reachedCutoff = false;
+    let allPagesOlderThanCutoff = true;
     for (const pageData of pages) {
       if (!pageData) continue;
       const orders = extractOrders(pageData);
-      const { oldestDate } = processOrders(orders, cutoffDate, aggregations);
-      // En modo DESC: si la página más antigua está antes del cutoff, ya no hay más datos útiles
-      if (!pageIsAscending && oldestDate < cutoffDate && oldestDate !== "9999-99-99") {
-        reachedCutoff = true;
-      }
+      const { newestDate } = processOrders(orders, cutoffDate, aggregations);
+      // Si alguna orden de esta página es más reciente que el cutoff → hay datos útiles
+      if (newestDate >= cutoffDate) allPagesOlderThanCutoff = false;
     }
 
     console.log(
@@ -241,7 +239,8 @@ export async function fetchOrderAggregations(
       `${aggregations.size} SKUs acumulados`,
     );
 
-    if (reachedCutoff) {
+    // Solo parar si TODAS las páginas del lote son anteriores al cutoff
+    if (allPagesOlderThanCutoff) {
       console.log("[PG Orders] Cutoff alcanzado — fin de paginación.");
       break;
     }
