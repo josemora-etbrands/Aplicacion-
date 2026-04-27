@@ -2,6 +2,7 @@
 import { useState } from "react";
 import type { ProductDiagnostico } from "@/app/lib/diagnostico";
 import type { WeekKey } from "@/app/lib/weekUtils";
+import SkuDetailModal from "./SkuDetailModal";
 
 const statusStyle: Record<string, string> = {
   VERDE:     "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
@@ -41,8 +42,9 @@ interface Props {
 }
 
 export default function DiagnosticoTable({ diagnosticos, weekWindow }: Props) {
-  const [filter, setFilter] = useState<FilterValue>("ALL");
-  const [search, setSearch] = useState("");
+  const [filter,      setFilter]      = useState<FilterValue>("ALL");
+  const [search,      setSearch]      = useState("");
+  const [selectedSku, setSelectedSku] = useState<string | null>(null);
 
   const visible = diagnosticos.filter(d => {
     if (filter !== "ALL" && d.status !== filter) return false;
@@ -64,6 +66,10 @@ export default function DiagnosticoTable({ diagnosticos, weekWindow }: Props) {
   };
 
   return (
+    <>
+    {selectedSku && (
+      <SkuDetailModal sku={selectedSku} onClose={() => setSelectedSku(null)} />
+    )}
     <div className="rounded-xl border border-white/5 bg-[#111111] overflow-hidden">
       {/* Filters */}
       <div className="px-4 py-3 border-b border-white/5 flex items-center gap-3 flex-wrap">
@@ -126,7 +132,12 @@ export default function DiagnosticoTable({ diagnosticos, weekWindow }: Props) {
             {visible.map((d, i) => (
               <tr key={d.sku} className={`${i < visible.length - 1 ? "border-b border-white/5" : ""} hover:bg-white/[0.02] transition-colors`}>
                 <td className="px-4 py-2.5">
-                  <span className="font-mono text-[#3b82f6]">{d.sku}</span>
+                  <button
+                    onClick={() => setSelectedSku(d.sku)}
+                    className="font-mono text-[#3b82f6] hover:text-indigo-300 hover:underline underline-offset-2 transition-colors cursor-pointer"
+                  >
+                    {d.sku}
+                  </button>
                 </td>
                 <td className="px-4 py-2.5 max-w-[160px]">
                   <span className="text-white/80 block truncate">{d.nombre}</span>
@@ -214,5 +225,6 @@ export default function DiagnosticoTable({ diagnosticos, weekWindow }: Props) {
         )}
       </div>
     </div>
+    </>
   );
 }

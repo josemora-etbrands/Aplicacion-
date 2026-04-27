@@ -51,6 +51,7 @@ model Product {
   updatedAt        DateTime      @updatedAt
   actionLogs       ActionLog[]
   weeklySales      WeeklySales[]
+  palancaLogs      PalancaLog[]
 
   @@map("products")
 }
@@ -80,6 +81,18 @@ model Palanca {
   createdAt   DateTime         @default(now())
   actionLogs  ActionLog[]
   @@map("palancas")
+}
+
+model PalancaLog {
+  id          String   @id @default(cuid())
+  productId   String
+  tipoPalanca String
+  fechaInicio DateTime
+  comentario  String?
+  createdAt   DateTime @default(now())
+  product     Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@map("palanca_logs")
 }
 
 enum EjecutadoPor {
