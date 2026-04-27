@@ -9,7 +9,7 @@ import {
   PGDownError,
 } from "@/app/lib/profitguard-api";
 import { fetchOrderAggregations } from "@/app/lib/profitguard-orders";
-import { fetchMLStock }           from "@/app/lib/profitguard-passthrough";
+import { fetchProductStocks }     from "@/app/lib/profitguard-api";
 
 export const runtime     = "nodejs";
 export const maxDuration = 300;
@@ -45,10 +45,7 @@ export async function POST() {
     const [pgProducts, aggregations, stockMap] = await Promise.all([
       fetchAllProducts(),
       fetchOrderAggregations(6),
-      fetchMLStock().catch(err => {
-        console.warn("[sync-api] Stock ML no disponible:", String(err));
-        return new Map<string, number>();
-      }),
+      fetchProductStocks(), // /api/v1/product_stocks — suma todos los canales
     ]);
 
     if (pgProducts.length === 0) {
@@ -186,7 +183,7 @@ export async function POST() {
 
     return NextResponse.json({
       success:  true,
-      source:   "ProfitGuard + Mercado Libre API",
+      source:   "ProfitGuard API",
       syncedAt: new Date().toISOString(),
       elapsed:  `${elapsed}s`,
       note:     "Sincroniza catálogo, ingresos, ventas, margen, historial semanal y stock. Solo ACOS y velocidades requieren Excel.",

@@ -250,24 +250,49 @@ export async function fetchAllProducts(): Promise<PGProduct[]> {
 }
 
 /**
- * Obtiene el stock actualizado por SKU desde un endpoint dedicado si existe.
- * Retorna null si el endpoint no está disponible (404).
+ * Obtiene el stock total por SKU desde /api/v1/product_stocks.
+ * Suma stock de todos los warehouses (ML + Falabella + etc.).
+ * Retorna Map vacío si el endpoint falla.
  */
-export async function fetchProductStocks(): Promise<Record<string, number> | null> {
-  try {
-    const data = await pgFetch("/api/v1/product-stocks?per_page=500");
-    const items = extractArray(data) as Array<Record<string, unknown>>;
-    if (items.length === 0) return null;
+export async function fetchProductStocks(): Promise<Map<string, number>> {
+  const stockMap = new Map<string, number>();
+  let page = 1;
 
-    const map: Record<string, number> = {};
-    for (const item of items) {
-      const sku   = String(item.sku ?? item.item_id ?? "").trim();
-      const stock = Math.round(Number(item.stock ?? item.stock_total ?? item.quantity ?? 0));
-      if (sku) map[sku] = stock;
+  try {
+    while (true) {
+      let data: unknown;
+      try {
+        data = await pgFetch(`/api/v1/product_stocks?page=${page}&page_size=100`);
+      } catch (err) {
+        if (err instanceof PGPageNotFoundError) break;
+        throw err;
+      }
+
+      const items = extractArray(data) as Array<Record<string, unknown>>;
+      if (items.length === 0) break;
+
+      for (const item of items) {
+        const sku = String(
+          item.product_sku ?? item.sku ?? item.item_id ?? ""
+        ).trim();
+        if (!sku) continue;
+        const qty = Math.round(
+          Number(item.quantity ?? item.stock ?? item.available_quantity ?? 0)
+        );
+        // Sumar stock de todos los warehouses para ese SKU
+        stockMap.set(sku, (stockMap.get(sku) ?? 0) + qty);
+      }
+
+      const meta       = (data as Record<string, unknown>)?.meta as Record<string, unknown> | undefined;
+      const totalPages = Number(meta?.total_pages ?? 0);
+      if (totalPages > 0 && page >= totalPages) break;
+      page++;
     }
-    return map;
-  } catch {
-    // Endpoint no existe — no es error crítico
-    return null;
+
+    console.log(`[PG Stocks] ✓ ${stockMap.size} SKUs con stock`);
+    return stockMap;
+  } catch (err) {
+    console.warn("[PG Stocks] No disponible:", String(err));
+    return stockMap;
   }
 }
