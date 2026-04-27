@@ -73,26 +73,18 @@ function weeksAgo(n: number): string {
 
 async function pgFetchPage(page: number, cutoffDate: string): Promise<unknown> {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 15_000); // 15s por página
+  const timer = setTimeout(() => controller.abort(), 15_000);
 
   try {
-    // Intentar con filtro de fecha primero
-    const url = `${BASE_URL}/api/v1/orders?page=${page}&per_page=100&status=paid&from=${cutoffDate}`;
+    // El parámetro correcto según la doc oficial es page_size (no per_page)
+    const url = `${BASE_URL}/api/v1/orders?page=${page}&page_size=100&status=paid&from=${cutoffDate}`;
     const res = await fetch(url, {
       headers: { Authorization: `Bearer ${API_KEY}`, Accept: "application/json" },
       cache: "no-store",
       signal: controller.signal,
     });
-    if (res.ok) return res.json();
-
-    // Fallback sin filtro si la API no lo soporta
-    const fallback = `${BASE_URL}/api/v1/orders?page=${page}&per_page=100`;
-    const res2 = await fetch(fallback, {
-      headers: { Authorization: `Bearer ${API_KEY}`, Accept: "application/json" },
-      cache: "no-store",
-    });
-    if (!res2.ok) throw new Error(`Orders API ${res2.status} página ${page}`);
-    return res2.json();
+    if (!res.ok) throw new Error(`Orders API ${res.status} página ${page}`);
+    return res.json();
   } finally {
     clearTimeout(timer);
   }
