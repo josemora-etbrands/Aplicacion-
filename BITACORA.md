@@ -112,6 +112,19 @@ no desde el server de Vercel. Todo lo demás SÍ sale con el Bearer (`/api/v1/*`
 
 ## 7. CHANGELOG (más reciente arriba)
 
+### 2026-06-19 — Sync de velocidades (CORS + perf) y caída de DB
+- **CORS** agregado a `/api/ingest-velocities` (OPTIONS + headers) porque el bookmarklet
+  corre en `app.profitguard.cl` y envía a `aplicacion-neon.vercel.app` (cross-origin).
+- **Perf:** `ingest-velocities` ahora hace upserts en paralelo por lotes de 25 (antes 1×1,
+  802 ítems excedían el timeout de 45s del navegador). Stats ahora: `{processed, skipped}`.
+- **Verificado:** el endpoint autentica OK con `INGEST_SECRET = etb_vel_7Kq2mZ9xR4pL8nW`
+  (responde 400 "No se recibieron items" con items vacíos; 401 con secret malo).
+- 🚩 **INCIDENTE — DB caída:** `/api/diagnostico`, `/api/sku/*` y el dashboard devuelven
+  "Sin conexión DB" (HTTP 500). Causa probable: **proyecto Supabase pausado por inactividad**
+  (plan free pausa tras ~7 días; el repo no se tocaba desde abr-27). **Acción del usuario:**
+  Supabase dashboard → restaurar/resume el proyecto. Una vez arriba, re-correr el sync de
+  velocidades (vía navegador) y un sync-api para poblar catálogo/ventas/stock/ads.
+
 ### 2026-06-18 — Migración a ProfitGuard API (eliminar subida de datos)
 **Instrucción:** eliminar toda la subida de datos (Excel + botón manual) y traer todo desde ProfitGuard.
 - **Eliminado:** `app/api/import-report` (Excel), `app/api/explore-pg` (temporal), dependencia `xlsx`.
