@@ -20,6 +20,22 @@ import { prisma } from "@/lib/prisma";
 export const runtime     = "nodejs";
 export const maxDuration = 120;
 
+// El bookmarklet corre en app.profitguard.cl y envía a este dominio (cross-origin).
+// La protección real es el header x-ingest-secret, así que permitimos cualquier origen.
+const CORS = {
+  "Access-Control-Allow-Origin":  "*",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type, x-ingest-secret",
+};
+
+function json(body: unknown, status = 200) {
+  return NextResponse.json(body, { status, headers: CORS });
+}
+
+export async function OPTIONS() {
+  return new NextResponse(null, { status: 204, headers: CORS });
+}
+
 const INICIAL_RATIO = 0.3; // fracción de la meta madura usada como piso inicial
 
 interface VelocityItem {
@@ -33,13 +49,13 @@ export async function POST(req: NextRequest) {
   // ── Auth ──────────────────────────────────────────────────────
   const secret = process.env.INGEST_SECRET;
   if (!secret) {
-    return NextResponse.json(
+    return json(
       { error: "INGEST_SECRET no configurada en el servidor. Agrégala en Vercel → Environment Variables." },
-      { status: 500 },
+      500,
     );
   }
   if (req.headers.get("x-ingest-secret") !== secret) {
-    return NextResponse.json({ error: "No autorizado." }, { status: 401 });
+    return json({ error: "No autorizado." }, 401);
   }
 
   // ── Body ──────────────────────────────────────────────────────
@@ -48,10 +64,10 @@ export async function POST(req: NextRequest) {
     const body = (await req.json()) as { items?: VelocityItem[] };
     items = Array.isArray(body.items) ? body.items : [];
   } catch {
-    return NextResponse.json({ error: "JSON inválido." }, { status: 400 });
+    return json({ error: "JSON inválido." }, 400);
   }
   if (items.length === 0) {
-    return NextResponse.json({ error: "No se recibieron items." }, { status: 400 });
+    return json({ error: "No se recibieron items." }, 400);
   }
 
   // ── Upsert metas de velocidad ─────────────────────────────────
@@ -85,7 +101,7 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  return NextResponse.json({
+  return json({
     success: true,
     received: items.length,
     stats: { updated, created, skipped },
