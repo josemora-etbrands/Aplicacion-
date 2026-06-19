@@ -27,14 +27,18 @@ async function runCatalogSync() {
       return NextResponse.json({ error: "ProfitGuard no devolvió productos." }, { status: 422 });
     }
 
+    // Solo productos ACTIVOS en ProfitGuard
     const items: Array<{ sku: string; nombre: string }> = [];
+    let inactivos = 0;
     for (const pg of pgProducts) {
       const raw = extractSku(pg);
       if (!raw) continue;
       const sku = sanitizeSku(raw);
       if (!sku) continue;
+      if (pg.active === false) { inactivos++; continue; }
       items.push({ sku, nombre: extractNombre(pg, sku) });
     }
+    const activeSkus = items.map(i => i.sku);
 
     let updated = 0, created = 0, skipped = 0;
     const BATCH = 25;
@@ -56,8 +60,30 @@ async function runCatalogSync() {
       for (const x of r) x === "c" ? created++ : x === "u" ? updated++ : skipped++;
     }
 
+    // ── Limpieza: borrar de la app los productos que NO están activos en PG ──
+    // (La DB es un espejo de ProfitGuard; si se reactiva uno, vuelve en el próximo sync.)
+    let deleted = 0;
+    if (activeSkus.length > 0) {
+      const stale = await prisma.product.findMany({
+        where:  { sku: { notIn: activeSkus } },
+        select: { id: true },
+      });
+      const ids = stale.map(p => p.id);
+      if (ids.length > 0) {
+        // ActionLog no tiene cascade → borrar primero para no violar la FK.
+        // WeeklySales y PalancaLog se borran en cascada al eliminar el producto.
+        await prisma.actionLog.deleteMany({ where: { productId: { in: ids } } });
+        const res = await prisma.product.deleteMany({ where: { id: { in: ids } } });
+        deleted = res.count;
+      }
+    }
+
     const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
-    return NextResponse.json({ success: true, elapsed: `${elapsed}s`, stats: { total: pgProducts.length, updated, created, skipped } });
+    return NextResponse.json({
+      success: true,
+      elapsed: `${elapsed}s`,
+      stats: { total: pgProducts.length, activos: items.length, inactivos, updated, created, skipped, eliminados: deleted },
+    });
   } catch (err) {
     if (err instanceof PGAuthError) return NextResponse.json({ error: err.message }, { status: 401 });
     return NextResponse.json({ error: `Error al sincronizar catálogo: ${String(err)}` }, { status: 500 });

@@ -27,6 +27,8 @@ export interface PGProduct {
   // Dimensiones (no usadas en el dashboard)
   weight?: number; height?: number; length?: number; width?: number;
   type?:   string;
+  // Estado en ProfitGuard
+  active?: boolean;
 }
 
 export interface PGSyncResult {
