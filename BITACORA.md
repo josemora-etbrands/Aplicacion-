@@ -112,6 +112,14 @@ no desde el server de Vercel. Todo lo demás SÍ sale con el Bearer (`/api/v1/*`
 
 ## 7. CHANGELOG (más reciente arriba)
 
+### 2026-06-19 (tarde 5) — Definición de metas confirmada con negocio ✓
+- Confirmado: **Meta Madura = `weeklySalesSpeed`** ("la velocidad" de PG), NO `averageWeeklySales`
+  ("la velocidad promedio"). El usuario quiere "la velocidad".
+- **Meta Inicial = 27.5%** de la madura (punto medio entre 25% y 30%, definido por el usuario).
+  `INICIAL_RATIO` en `ingest-velocities` cambiado 0.3 → 0.275.
+- Re-sincronizado: 377 metas. Verificado: WIPESBEBE001 400→inicial 110, CAMZEK001 350→inicial 96.
+- Resuelve la deuda #8 (mapeo de meta única→doble).
+
 ### 2026-06-19 (tarde 4) — Solo productos activos ✓
 - `sync-catalog` ahora filtra por `pg.active === true` (solo trae activos) y **elimina** de la app
   los productos que NO estén en el set de activos (`deleteMany where sku notIn activeSkus`).
