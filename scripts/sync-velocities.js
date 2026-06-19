@@ -16,7 +16,7 @@
 (async () => {
   const CONFIG = {
     // URL pública de la app en Vercel (sin slash final)
-    APP_URL: "https://aplicacion-josemora.vercel.app",
+    APP_URL: "https://aplicacion-neon.vercel.app",
     // Debe coincidir con INGEST_SECRET configurado en Vercel
     SECRET: "PEGA_AQUI_EL_INGEST_SECRET",
     WEEK_COUNT: 5,

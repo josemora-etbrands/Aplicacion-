@@ -16,7 +16,7 @@ import Sidebar from "@/app/components/Sidebar";
  */
 
 const BOOKMARKLET =
-  `javascript:(async()=>{const A="__APP_URL__",S="__SECRET__";const all=[];let p=1,T=1;do{const r=await fetch(\`/api/internal/sales_speed/product_items?page=\${p}&week_count=5&sort_key=weekly_sales_speed&sort_dir=desc&active=active&page_size=100\`,{headers:{Accept:"application/json"},credentials:"include"});if(r.url.includes("/session/new")){alert("Sesión PG expirada");return}const j=await r.json();T=j.meta?.total_pages||1;(j.items||[]).forEach(i=>all.push({sku:i.sku,weeklySalesSpeed:i.weeklySalesSpeed,category:i.category,averageWeeklySales:i.averageWeeklySales}));p++}while(p<=T);const res=await fetch(A+"/api/ingest-velocities",{method:"POST",headers:{"Content-Type":"application/json","x-ingest-secret":S},body:JSON.stringify({items:all})});const o=await res.json();alert(res.ok?\`✓ \${o.received} velocidades (act \${o.stats.updated}/creados \${o.stats.created})\`:"✗ "+(o.error||res.status))})();`;
+  `javascript:(async()=>{const A="https://aplicacion-neon.vercel.app",S="__SECRET__";const all=[];let p=1,T=1;do{const r=await fetch(\`/api/internal/sales_speed/product_items?page=\${p}&week_count=5&sort_key=weekly_sales_speed&sort_dir=desc&active=active&page_size=100\`,{headers:{Accept:"application/json"},credentials:"include"});if(r.url.includes("/session/new")){alert("Sesión PG expirada");return}const j=await r.json();T=j.meta?.total_pages||1;(j.items||[]).forEach(i=>all.push({sku:i.sku,weeklySalesSpeed:i.weeklySalesSpeed,category:i.category,averageWeeklySales:i.averageWeeklySales}));p++}while(p<=T);const res=await fetch(A+"/api/ingest-velocities",{method:"POST",headers:{"Content-Type":"application/json","x-ingest-secret":S},body:JSON.stringify({items:all})});const o=await res.json();alert(res.ok?\`✓ \${o.received} velocidades (act \${o.stats.updated}/creados \${o.stats.created})\`:"✗ "+(o.error||res.status))})();`;
 
 export default function DatosPage() {
   const [copied, setCopied] = useState(false);
@@ -79,8 +79,8 @@ export default function DatosPage() {
               {copied ? "✓ Copiado al portapapeles" : "Copiar bookmarklet"}
             </button>
             <p className="text-white/15 text-[11px] text-center">
-              Reemplaza <code className="font-mono">__APP_URL__</code> y <code className="font-mono">__SECRET__</code> en
-              el código por la URL de la app y el valor de <code className="font-mono">INGEST_SECRET</code>.
+              Solo reemplaza <code className="font-mono">__SECRET__</code> en el código por el valor
+              de <code className="font-mono">INGEST_SECRET</code> (la URL ya viene incrustada).
             </p>
           </div>
 
