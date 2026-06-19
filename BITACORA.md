@@ -112,6 +112,18 @@ no desde el server de Vercel. Todo lo demás SÍ sale con el Bearer (`/api/v1/*`
 
 ## 7. CHANGELOG (más reciente arriba)
 
+### 2026-06-19 (tarde 3) — Sync dividido + orquestador cron ✓
+- Creados endpoints livianos: `/api/sync-catalog` (~18s), `/api/sync-stock` (~47s),
+  `/api/sync-orders`, `/api/sync-ads`. Cada uno corre como invocación serverless propia.
+- **`/api/cron/sync`** orquesta: catálogo primero, luego stock+órdenes+ads en paralelo.
+  Cada fase escribe por su cuenta → aunque el orquestador llegue a 300s, los datos aterrizan.
+- `vercel.json`: el cron diario (09:00) ahora apunta a `/api/cron/sync` (antes al sync-api pesado).
+- **Probado:** tras correr el orquestador, catálogo creció 700→798 productos y el semáforo se
+  actualizó (55🔴/145🟡/100🟢). Funciona.
+- **ACOS:** sync-ads corre en paralelo a sync-orders, así que usa los ingresos del ciclo previo
+  (desfase de 1 día, aceptable para cron diario; se corrige solo).
+- **Legacy:** `/api/sync-api` (monolítico) queda solo para debug manual; ya NO lo usa el cron.
+
 ### 2026-06-19 (tarde 2) — Fix de stock + sync dividido en fases ✓
 - **Bug de stock encontrado:** `fetchProductStocks` leía `item.product_sku` (plano) pero el SKU
   viene anidado en `item.product.sku` → stock siempre 0. Corregido.
