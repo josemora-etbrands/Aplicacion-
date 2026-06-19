@@ -272,14 +272,18 @@ export async function fetchProductStocks(): Promise<Map<string, number>> {
       if (items.length === 0) break;
 
       for (const item of items) {
+        // El SKU viene ANIDADO en item.product.sku (no plano).
+        const product = item.product as Record<string, unknown> | undefined;
         const sku = String(
-          item.product_sku ?? item.sku ?? item.item_id ?? ""
+          product?.sku ?? item.product_sku ?? item.sku ?? item.item_id ?? ""
         ).trim();
         if (!sku) continue;
+        // Ignorar snapshots no vigentes si la API marca `live`.
+        if (item.live === false) continue;
         const qty = Math.round(
           Number(item.quantity ?? item.stock ?? item.available_quantity ?? 0)
         );
-        // Sumar stock de todos los warehouses para ese SKU
+        // Sumar stock de todas las bodegas para ese SKU
         stockMap.set(sku, (stockMap.get(sku) ?? 0) + qty);
       }
 

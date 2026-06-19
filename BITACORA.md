@@ -112,6 +112,13 @@ no desde el server de Vercel. Todo lo demás SÍ sale con el Bearer (`/api/v1/*`
 
 ## 7. CHANGELOG (más reciente arriba)
 
+### 2026-06-19 (tarde) — DB restaurada + velocidades cargadas ✓
+- Usuario restauró Supabase (estaba pausado). `/api/diagnostico` → 200. DB con ~697 productos.
+- **Sync de velocidades ejecutado** (vía navegador, en 3 lotes de ~300): **377 metas escritas**,
+  el resto (425) tenía `weeklySalesSpeed=0` en PG y se omitió correctamente.
+- Verificado en DB: WIPESBEBE001 madura=400/inicial=120, CAMZEK001 madura=350/inicial=105.
+- Disparado `sync-api` (POST) para poblar catálogo/órdenes/stock/ads.
+
 ### 2026-06-19 — Sync de velocidades (CORS + perf) y caída de DB
 - **CORS** agregado a `/api/ingest-velocities` (OPTIONS + headers) porque el bookmarklet
   corre en `app.profitguard.cl` y envía a `aplicacion-neon.vercel.app` (cross-origin).
