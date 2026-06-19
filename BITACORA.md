@@ -112,6 +112,17 @@ no desde el server de Vercel. Todo lo demás SÍ sale con el Bearer (`/api/v1/*`
 
 ## 7. CHANGELOG (más reciente arriba)
 
+### 2026-06-19 (tarde 2) — Fix de stock + sync dividido en fases ✓
+- **Bug de stock encontrado:** `fetchProductStocks` leía `item.product_sku` (plano) pero el SKU
+  viene anidado en `item.product.sku` → stock siempre 0. Corregido.
+- **Causa raíz de timeouts:** `/api/sync-api` (catálogo+órdenes+ads+stock) excede los 300s de
+  Vercel y lo matan antes de escribir stock. Solución: **dividir en endpoints livianos.**
+- Nuevo **`/api/sync-stock`** (solo stock): corre en ~47s. Ejecutado → 798 SKUs mapeados,
+  312 con stock>0, 700 productos actualizados.
+- **RESULTADO:** dashboard con datos reales. Semáforo: 95 🔴 / 123 🟡 / 82 🟢 (resto sin stock).
+- **Pendiente:** dividir también órdenes y ads en endpoints livianos y apuntar el/los cron(s)
+  a ellos (hoy `vercel.json` apunta al sync-api pesado que puede no completar).
+
 ### 2026-06-19 (tarde) — DB restaurada + velocidades cargadas ✓
 - Usuario restauró Supabase (estaba pausado). `/api/diagnostico` → 200. DB con ~697 productos.
 - **Sync de velocidades ejecutado** (vía navegador, en 3 lotes de ~300): **377 metas escritas**,
