@@ -65,7 +65,7 @@
   console.log("[sync-velocidades] Respuesta de la app:", out);
   alert(
     res.ok
-      ? `✓ Velocidades sincronizadas\nRecibidos: ${out.received}\nActualizados: ${out.stats?.updated}\nCreados: ${out.stats?.created}\nOmitidos: ${out.stats?.skipped}`
+      ? `✓ Velocidades sincronizadas\nRecibidos: ${out.received}\nGuardados: ${out.stats?.processed}\nOmitidos: ${out.stats?.skipped}`
       : `✗ Error: ${out.error ?? res.status}`,
   );
 })();
@@ -75,5 +75,5 @@
  * Crea un marcador en el navegador y pega esto como URL (reemplaza APP_URL y SECRET).
  * Luego, estando en app.profitguard.cl, haz clic en el marcador.
  *
- * javascript:(async()=>{const A="https://TU-APP.vercel.app",S="TU_SECRET";const all=[];let p=1,T=1;do{const r=await fetch(`/api/internal/sales_speed/product_items?page=${p}&week_count=5&sort_key=weekly_sales_speed&sort_dir=desc&active=active&page_size=100`,{headers:{Accept:"application/json"},credentials:"include"});if(r.url.includes("/session/new")){alert("Sesión PG expirada");return}const j=await r.json();T=j.meta?.total_pages||1;(j.items||[]).forEach(i=>all.push({sku:i.sku,weeklySalesSpeed:i.weeklySalesSpeed,category:i.category,averageWeeklySales:i.averageWeeklySales}));p++}while(p<=T);const res=await fetch(A+"/api/ingest-velocities",{method:"POST",headers:{"Content-Type":"application/json","x-ingest-secret":S},body:JSON.stringify({items:all})});const o=await res.json();alert(res.ok?`✓ ${o.received} velocidades (act ${o.stats.updated}/creados ${o.stats.created})`:"✗ "+(o.error||res.status))})();
+ * javascript:(async()=>{const A="https://TU-APP.vercel.app",S="TU_SECRET";const all=[];let p=1,T=1;do{const r=await fetch(`/api/internal/sales_speed/product_items?page=${p}&week_count=5&sort_key=weekly_sales_speed&sort_dir=desc&active=active&page_size=100`,{headers:{Accept:"application/json"},credentials:"include"});if(r.url.includes("/session/new")){alert("Sesión PG expirada");return}const j=await r.json();T=j.meta?.total_pages||1;(j.items||[]).forEach(i=>all.push({sku:i.sku,weeklySalesSpeed:i.weeklySalesSpeed,category:i.category,averageWeeklySales:i.averageWeeklySales}));p++}while(p<=T);const res=await fetch(A+"/api/ingest-velocities",{method:"POST",headers:{"Content-Type":"application/json","x-ingest-secret":S},body:JSON.stringify({items:all})});const o=await res.json();alert(res.ok?`✓ ${o.stats.processed} velocidades guardadas (${o.stats.skipped} omitidas)`:"✗ "+(o.error||res.status))})();
  * ───────────────────────────────────────────────────────────────────────────── */

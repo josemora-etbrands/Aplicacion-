@@ -70,41 +70,37 @@ export async function POST(req: NextRequest) {
     return json({ error: "No se recibieron items." }, 400);
   }
 
-  // ── Upsert metas de velocidad ─────────────────────────────────
-  let updated = 0, created = 0, skipped = 0;
+  // ── Upsert metas de velocidad (en paralelo por lotes) ─────────
+  let processed = 0, skipped = 0;
   const errors: string[] = [];
+  const BATCH = 25;
 
-  for (const it of items) {
+  const ops = items.map((it) => async () => {
     const sku = it.sku?.toString().trim();
     const madura = Number(it.weeklySalesSpeed);
-    if (!sku || !Number.isFinite(madura) || madura <= 0) { skipped++; continue; }
-
+    if (!sku || !Number.isFinite(madura) || madura <= 0) { skipped++; return; }
     const inicial = Math.max(1, Math.round(madura * INICIAL_RATIO));
-
     try {
-      const existing = await prisma.product.findUnique({ where: { sku }, select: { id: true } });
-      if (existing) {
-        await prisma.product.update({
-          where: { sku },
-          data:  { velocidadMadura: madura, velocidadInicial: inicial },
-        });
-        updated++;
-      } else {
-        await prisma.product.create({
-          data: { sku, nombre: sku, velocidadMadura: madura, velocidadInicial: inicial },
-        });
-        created++;
-      }
+      await prisma.product.upsert({
+        where:  { sku },
+        update: { velocidadMadura: madura, velocidadInicial: inicial },
+        create: { sku, nombre: sku, velocidadMadura: madura, velocidadInicial: inicial },
+      });
+      processed++;
     } catch (err) {
       if (errors.length < 10) errors.push(`${sku}: ${String(err)}`);
       skipped++;
     }
+  });
+
+  for (let i = 0; i < ops.length; i += BATCH) {
+    await Promise.all(ops.slice(i, i + BATCH).map(fn => fn()));
   }
 
   return json({
     success: true,
     received: items.length,
-    stats: { updated, created, skipped },
+    stats: { processed, skipped },
     errors,
   });
 }
