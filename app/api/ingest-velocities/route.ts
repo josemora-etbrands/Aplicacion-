@@ -10,8 +10,8 @@
  * Body: { items: [{ sku, weeklySalesSpeed, category?, averageWeeklySales? }, ...] }
  *
  * Mapeo (v1, sin migración): PG entrega UNA meta (`weeklySalesSpeed`).
- *   - velocidadMadura  = weeklySalesSpeed              (objetivo)
- *   - velocidadInicial = round(weeklySalesSpeed * 0.3) (piso de rampa)
+ *   - velocidadMadura  = weeklySalesSpeed                (objetivo, "la velocidad" de PG)
+ *   - velocidadInicial = round(weeklySalesSpeed * 0.275) (piso: 27.5%, def. con negocio)
  * La categoría ABC se persistirá cuando se agregue la columna `categoria` (migración pendiente).
  */
 import { NextRequest, NextResponse } from "next/server";
@@ -36,7 +36,7 @@ export async function OPTIONS() {
   return new NextResponse(null, { status: 204, headers: CORS });
 }
 
-const INICIAL_RATIO = 0.3; // fracción de la meta madura usada como piso inicial
+const INICIAL_RATIO = 0.275; // 27.5% — punto medio entre 25% y 30% (definido con negocio)
 
 interface VelocityItem {
   sku:                string;
