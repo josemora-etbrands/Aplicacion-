@@ -36,6 +36,8 @@ en curso se calcula pero no se muestra en la ventana cerrada.
 | `DATABASE_URL` | cadena Postgres (Supabase). Requerida. |
 | `PROFITGUARD_API_URL` | default `https://app.profitguard.cl` |
 | `PROFITGUARD_API_KEY` | Bearer token de ProfitGuard. Sin esto, `/api/sync-api` falla con 500. |
+| `INGEST_SECRET` | secreto para el endpoint `/api/ingest-velocities`. Debe ir también en el bookmarklet. Sin esto el endpoint responde 500. |
+| `CRON_SECRET` | (opcional) protege el `GET /api/sync-api` que dispara el cron de Vercel. Vercel lo envía como `Authorization: Bearer`. |
 
 ## 3. MODELO DE DATOS (prisma/schema.prisma)
 
@@ -75,9 +77,26 @@ Librerías clave: `app/lib/profitguard-api.ts` (catálogo+stock), `profitguard-o
    tienen página → dan 404. Falta crearlas o quitar los links.
 4. **Prisma client duplicado.** Existen `lib/prisma.ts` y `app/lib/prisma.ts` idénticos.
    Los imports usan `@/lib/prisma`. El de `app/lib/prisma.ts` parece no usarse. Consolidar.
-5. **`acos` en DB casi siempre 0** porque sync-api no lo trae (solo Excel PROFIT). La tabla
-   calcula ACOS al vuelo desde publicidad/ingresos; tenerlo presente al mostrar ACOS.
-6. **`/api/explore-pg` es temporal** y quedó en el repo. Borrar cuando ya no se necesite.
+5. ~~`acos` en DB casi siempre 0~~ → **RESUELTO 2026-06-18**: sync-api ahora trae gasto
+   publicitario vía `/api/v1/product_ads` y llena `publicidad` + calcula `acos`.
+6. ~~`/api/explore-pg` es temporal~~ → **RESUELTO 2026-06-18**: eliminada.
+
+### Deudas nuevas / pendientes
+7. **Categoría ABC pendiente de migración.** PG entrega `category` (a/b/c/d) en el endpoint
+   interno, pero la tabla `Product` no tiene columna `categoria`. Falta migración + persistir.
+   El bookmarklet ya captura `category` en el payload; `/api/ingest-velocities` aún la ignora.
+8. **PG tiene UNA sola meta de velocidad (`weeklySalesSpeed`), la app usa dos.**
+   `/api/ingest-velocities` mapea: `velocidadMadura = weeklySalesSpeed`,
+   `velocidadInicial = round(weeklySalesSpeed * 0.3)`. El 0.3 es un default a validar con negocio.
+9. **Bookmarklet sin configurar.** En `/importar` y `scripts/sync-velocities.js` hay que
+   reemplazar `__APP_URL__` (URL de Vercel) y `__SECRET__` (= INGEST_SECRET) por los valores reales.
+
+### 🔑 HALLAZGO CLAVE — velocidades y auth
+Las metas de velocidad y la categoría ABC viven en `GET /api/internal/sales_speed/product_items`
+(campos `weeklySalesSpeed`, `category`, `averageWeeklySales`, `weeklySales[]`, `totalStock`).
+**Ese endpoint NO acepta el Bearer API key** (responde 302 → `/session/new`): solo funciona con
+la cookie de sesión del navegador. Por eso se sincroniza vía bookmarklet desde el browser logueado,
+no desde el server de Vercel. Todo lo demás SÍ sale con el Bearer (`/api/v1/*`).
 
 ## 6. FLUJO DE TRABAJO (CTO ↔ usuario)
 
@@ -92,6 +111,22 @@ Librerías clave: `app/lib/profitguard-api.ts` (catálogo+stock), `profitguard-o
 ---
 
 ## 7. CHANGELOG (más reciente arriba)
+
+### 2026-06-18 — Migración a ProfitGuard API (eliminar subida de datos)
+**Instrucción:** eliminar toda la subida de datos (Excel + botón manual) y traer todo desde ProfitGuard.
+- **Eliminado:** `app/api/import-report` (Excel), `app/api/explore-pg` (temporal), dependencia `xlsx`.
+- **`/api/sync-api` potenciado:** nueva lib `app/lib/profitguard-ads.ts` (gasto vía `/api/v1/product_ads`).
+  Ahora llena `publicidad` y calcula `acos` automáticamente (antes requería Excel PROFIT).
+- **Sync automático:** `vercel.json` con cron diario (`0 9 * * *`) que dispara `GET /api/sync-api`
+  (protegido por `CRON_SECRET`). Se eliminó el botón manual de la UI.
+- **Velocidades por navegador:** nuevo `POST /api/ingest-velocities` (protegido con `INGEST_SECRET`)
+  + bookmarklet (`scripts/sync-velocities.js` y botón "Copiar bookmarklet" en `/importar`).
+- **UI:** `/importar` reescrita (sin Excel ni botón sync) → página de estado + sync de velocidades.
+  Sidebar: "Importar Reporte" → "Datos / Sync".
+- **Verificado:** `next build` ✓ (los errores TS de `execute-palanca`/`seed.ts` son preexistentes
+  y no rompen por `ignoreBuildErrors: true`).
+- **Pendiente:** setear `INGEST_SECRET` (y opcional `CRON_SECRET`) en Vercel; configurar el bookmarklet;
+  migración para la columna `categoria` ABC (ver deudas 7-9).
 
 ### 2026-06-18 — Onboarding del CTO + creación de la bitácora
 - Se clonó el repo a `C:\Users\Lenovo\Aplicacion-` y se leyó el proyecto completo.

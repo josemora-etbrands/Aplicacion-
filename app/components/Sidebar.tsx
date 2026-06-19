@@ -4,7 +4,7 @@ import { usePathname } from "next/navigation";
 
 const nav = [
   { href: "/",          icon: "⬡", label: "Dashboard"          },
-  { href: "/importar",  icon: "⬆", label: "Importar Reporte"   },
+  { href: "/importar",  icon: "⟳", label: "Datos / Sync"        },
   { href: "/red-zone",  icon: "⚠", label: "Inventario Crítico"  },
   { href: "/ia-history",icon: "◈", label: "Historial de IA"     },
   { href: "/api-config",icon: "⚙", label: "Configuración API"   },

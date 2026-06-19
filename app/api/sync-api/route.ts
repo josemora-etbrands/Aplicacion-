@@ -10,6 +10,7 @@ import {
 } from "@/app/lib/profitguard-api";
 import { fetchOrderAggregations } from "@/app/lib/profitguard-orders";
 import { fetchProductStocks }     from "@/app/lib/profitguard-api";
+import { fetchAdSpend }           from "@/app/lib/profitguard-ads";
 
 export const runtime     = "nodejs";
 export const maxDuration = 300;
@@ -29,7 +30,7 @@ async function runInBatches<T>(ops: (() => Promise<T>)[], size: number): Promise
   return results;
 }
 
-export async function POST() {
+async function runSync() {
   const startTime = Date.now();
 
   try {
@@ -50,6 +51,10 @@ export async function POST() {
     // ── 1b. Órdenes en serie (fase lenta, respeta rate limit) ────
     console.log("[sync-api] Fase 2: historial de órdenes…");
     const aggregations = await fetchOrderAggregations(6);
+
+    // ── 1c. Gasto publicitario (para publicidad + ACOS) ──────────
+    console.log("[sync-api] Fase 3: gasto publicitario…");
+    const adSpend = await fetchAdSpend(6);
 
     if (pgProducts.length === 0) {
       return NextResponse.json(
@@ -112,6 +117,7 @@ export async function POST() {
       ...new Set([
         ...Array.from(aggregations.keys()),
         ...Array.from(stockMap.keys()),
+        ...Array.from(adSpend.keys()),
       ]),
     ];
     const dbProducts = await prisma.product.findMany({
@@ -124,21 +130,38 @@ export async function POST() {
     const productUpdateOps: (() => Promise<unknown>)[] = [];
     const weeklyOps: (() => Promise<unknown>)[]        = [];
 
-    for (const [sku, agg] of aggregations) {
+    // Unión de SKUs con ventas y/o gasto publicitario
+    const financeSkus = new Set<string>([
+      ...aggregations.keys(),
+      ...adSpend.keys(),
+    ]);
+
+    for (const sku of financeSkus) {
       const productId = skuToId.get(sku);
       if (!productId) continue;
+
+      const agg         = aggregations.get(sku);
+      const publicidad  = Math.round(adSpend.get(sku) ?? 0);
+      const ingresos    = agg ? Math.round(agg.totalRevenue) : 0;
+      // ACOS = gasto publicitario / ingresos (solo si hay ingresos)
+      const acos        = ingresos > 0 ? publicidad / ingresos : 0;
 
       productUpdateOps.push(() =>
         prisma.product.update({
           where: { id: productId },
           data: {
-            ingresos:  Math.round(agg.totalRevenue),
-            ventas:    Math.round(agg.totalNetRevenue),
-            margenPct: Math.round(agg.margenPct * 10) / 10,
+            ...(agg ? {
+              ingresos,
+              ventas:    Math.round(agg.totalNetRevenue),
+              margenPct: Math.round(agg.margenPct * 10) / 10,
+            } : {}),
+            publicidad,
+            acos: Math.round(acos * 1000) / 1000,
           },
         }),
       );
 
+      if (!agg) continue;
       for (const w of agg.weeks) {
         weeklyOps.push(() =>
           prisma.weeklySales.upsert({
@@ -181,7 +204,8 @@ export async function POST() {
       `[sync-api] ✓ Completo en ${elapsed}s — ` +
       `catálogo: ${updated}u/${created}c | ` +
       `órdenes: ${ordersUpdated} SKUs, ${weeklySalesUpserted} semanas | ` +
-      `stock: ${stockUpdated} SKUs`,
+      `stock: ${stockUpdated} SKUs | ` +
+      `ads: ${adSpend.size} SKUs`,
     );
 
     return NextResponse.json({
@@ -189,11 +213,12 @@ export async function POST() {
       source:   "ProfitGuard API",
       syncedAt: new Date().toISOString(),
       elapsed:  `${elapsed}s`,
-      note:     "Sincroniza catálogo, ingresos, ventas, margen, historial semanal y stock. Solo ACOS y velocidades requieren Excel.",
+      note:     "Sincroniza catálogo, ingresos, ventas, margen, historial semanal, stock, publicidad y ACOS desde ProfitGuard API. Las metas de velocidad y categoría ABC se cargan vía el sync de navegador.",
       stats: {
         catalog: { total: pgProducts.length, updated, created, skipped },
         orders:  { skusWithSales: aggregations.size, productsUpdated: ordersUpdated, weeklySalesUpserted },
         stock:   { skusWithStock: stockMap.size, productsUpdated: stockUpdated },
+        ads:     { skusWithSpend: adSpend.size },
       },
       processedSkus: updated + created,
       errors: catalogErrors,
@@ -206,4 +231,25 @@ export async function POST() {
     if (err instanceof PGDownError)      return NextResponse.json({ error: err.message }, { status: 503 });
     return NextResponse.json({ error: `Error al sincronizar: ${String(err)}` }, { status: 500 });
   }
+}
+
+/** Trigger manual (no usado por la UI, útil para pruebas/integraciones). */
+export async function POST() {
+  return runSync();
+}
+
+/**
+ * Trigger automático del cron de Vercel.
+ * Vercel envía `Authorization: Bearer <CRON_SECRET>` cuando CRON_SECRET está configurada.
+ * Si CRON_SECRET no está seteada, se permite (útil en preview), pero se recomienda setearla.
+ */
+export async function GET(req: Request) {
+  const cronSecret = process.env.CRON_SECRET;
+  if (cronSecret) {
+    const auth = req.headers.get("authorization");
+    if (auth !== `Bearer ${cronSecret}`) {
+      return NextResponse.json({ error: "No autorizado." }, { status: 401 });
+    }
+  }
+  return runSync();
 }
