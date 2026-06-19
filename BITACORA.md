@@ -112,6 +112,13 @@ no desde el server de Vercel. Todo lo demás SÍ sale con el Bearer (`/api/v1/*`
 
 ## 7. CHANGELOG (más reciente arriba)
 
+### 2026-06-19 (tarde 4) — Solo productos activos ✓
+- `sync-catalog` ahora filtra por `pg.active === true` (solo trae activos) y **elimina** de la app
+  los productos que NO estén en el set de activos (`deleteMany where sku notIn activeSkus`).
+  ActionLog se borra primero (no tiene cascade); WeeklySales/PalancaLog caen en cascada.
+- Guard: si no hay activos, NO borra (evita vaciar la DB por una respuesta vacía de PG).
+- **Ejecutado:** 798 totales → 489 activos (quedan) + 309 inactivos (eliminados). App = 489 productos.
+
 ### 2026-06-19 (tarde 3) — Sync dividido + orquestador cron ✓
 - Creados endpoints livianos: `/api/sync-catalog` (~18s), `/api/sync-stock` (~47s),
   `/api/sync-orders`, `/api/sync-ads`. Cada uno corre como invocación serverless propia.
