@@ -112,6 +112,26 @@ no desde el server de Vercel. Todo lo demás SÍ sale con el Bearer (`/api/v1/*`
 
 ## 7. CHANGELOG (más reciente arriba)
 
+### 2026-06-19 (noche) — Margen estilo-PG + fix escala /100 ✓
+- **BUG CRÍTICO de escala:** los montos CLP de PG en `cents` SON pesos enteros (CLP no tiene
+  decimales). El código dividía por 100 → ingresos/ventas/publicidad quedaban 100× chicos.
+  Corregido en orders y ads (cents = pesos). Verificado: `cents:66656` ↔ `"$66.656"`.
+- **Margen replicado de PG** (fórmula del `/dashboard/financial_summary`):
+  `margen = realIncome + extraTarjeta − COGS − publicidad`, `margen% = margen / ingresos`.
+- **PG no expone margen por-SKU de todos los productos** (solo global + top 10). Solución:
+  agregar TODAS las órdenes (≈36k/6sem) vía navegador desde `/api/internal/orders`
+  (`realIncome` por orden ya trae comisión y envío), prorratear por SKU, y enviar a
+  **`/api/ingest-finance`** (servidor completa con COGS + ads). Script: `scripts/sync-finance.js`.
+- **Resultado validado vs PG:** MASHOM002 34.5% (PG 34.3%), HOWELL001GRI 36.8% (36.0%),
+  CAMZEK001 25.6% (24.3%). Calza dentro de ~1-4pp. Antes daba 14.5% (mal).
+- Diferencia residual: ingresos app ~3-10% > PG → probablemente incluyo órdenes que PG
+  excluye (canceladas/devueltas). Pendiente afinar filtro de `status` si se requiere exactitud.
+- **El cron diario YA NO toca el financiero** (`sync-orders` sacado del orquestador): solo
+  catálogo + stock. Así el financiero del navegador no se sobreescribe con datos parciales.
+  El financiero y las velocidades se actualizan vía sync de navegador (manual, ~10-13 min).
+- `acos` sigue siendo TACOS provisional (= publicidad/ingresos). ACoS real de ML: PENDIENTE.
+- `/api/sync-orders` y `/api/sync-api` quedan legacy (no usados por el cron).
+
 ### 2026-06-19 (tarde 5) — Definición de metas confirmada con negocio ✓
 - Confirmado: **Meta Madura = `weeklySalesSpeed`** ("la velocidad" de PG), NO `averageWeeklySales`
   ("la velocidad promedio"). El usuario quiere "la velocidad".

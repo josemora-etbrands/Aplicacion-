@@ -32,11 +32,14 @@ export async function GET(req: Request) {
   // 1) Catálogo primero (los demás necesitan que existan los productos)
   const catalog = await call("/api/sync-catalog");
 
-  // 2) Stock + finanzas (órdenes+COGS+ads, incluye margen y publicidad) en paralelo
-  const [stock, orders] = await Promise.all([
-    call("/api/sync-stock"),
-    call("/api/sync-orders"),
-  ]);
+  // 2) Stock (rápido y exacto vía API)
+  const stock = await call("/api/sync-stock");
 
-  return NextResponse.json({ success: true, ranAt: new Date().toISOString(), catalog, stock, orders });
+  // NOTA: el financiero (ingresos/ventas/margen/publicidad/acos) y las velocidades
+  // se cargan vía el SYNC DE NAVEGADOR (/api/ingest-finance e /api/ingest-velocities),
+  // porque requieren agregar ~36k órdenes y leer el panel con sesión — algo que excede
+  // los límites de Vercel y el rate limit de la API pública. Por eso el cron NO toca
+  // esos campos: evitamos sobreescribir los datos buenos del navegador con datos parciales.
+
+  return NextResponse.json({ success: true, ranAt: new Date().toISOString(), catalog, stock });
 }
