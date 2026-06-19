@@ -252,6 +252,23 @@ export async function fetchAllProducts(): Promise<PGProduct[]> {
 }
 
 /**
+ * Mapa SKU → costo unitario (COGS) en CLP, desde el catálogo.
+ * En PG el `cents` de CLP es el monto en pesos enteros (no centavos): NO dividir por 100.
+ */
+export async function fetchCogsMap(): Promise<Map<string, number>> {
+  const products = await fetchAllProducts();
+  const map = new Map<string, number>();
+  for (const p of products) {
+    const sku = extractSku(p);
+    if (!sku) continue;
+    const cogs = p.unitCost?.cents ?? 0;
+    if (cogs > 0) map.set(sku, cogs);
+  }
+  console.log(`[PG COGS] ${map.size} SKUs con costo`);
+  return map;
+}
+
+/**
  * Obtiene el stock total por SKU desde /api/v1/product_stocks.
  * Suma stock de todos los warehouses (ML + Falabella + etc.).
  * Retorna Map vacío si el endpoint falla.

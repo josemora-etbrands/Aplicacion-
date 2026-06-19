@@ -32,12 +32,11 @@ export async function GET(req: Request) {
   // 1) Catálogo primero (los demás necesitan que existan los productos)
   const catalog = await call("/api/sync-catalog");
 
-  // 2) Stock + órdenes + ads en paralelo (cada uno su propia invocación)
-  const [stock, orders, ads] = await Promise.all([
+  // 2) Stock + finanzas (órdenes+COGS+ads, incluye margen y publicidad) en paralelo
+  const [stock, orders] = await Promise.all([
     call("/api/sync-stock"),
     call("/api/sync-orders"),
-    call("/api/sync-ads"),
   ]);
 
-  return NextResponse.json({ success: true, ranAt: new Date().toISOString(), catalog, stock, orders, ads });
+  return NextResponse.json({ success: true, ranAt: new Date().toISOString(), catalog, stock, orders });
 }

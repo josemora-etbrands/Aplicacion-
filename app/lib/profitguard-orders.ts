@@ -15,10 +15,14 @@ const BATCH_DELAY  = 1500; // ms entre lotes — respeta rate limit 120 req/min
 interface MoneyField { cents: number; currency: string; formattedValue: string; }
 
 interface PGOrderItem {
-  quantity:   number;
-  unitPrice:  MoneyField;
-  commission: MoneyField;
-  product: { sku: string; name: string; unitCost: MoneyField; };
+  quantity:                number;
+  unitPrice:               MoneyField;
+  commission:              MoneyField;
+  shippingCost?:           MoneyField;
+  shippingRevenue?:        MoneyField;
+  creditCardExtraRevenue?: MoneyField;
+  total?:                  MoneyField;
+  product: { sku: string; name: string; unitCost?: MoneyField; };
 }
 
 interface PGOrder {
@@ -28,15 +32,26 @@ interface PGOrder {
   orderItems: PGOrderItem[];
 }
 
+/**
+ * IMPORTANTE: en ProfitGuard (CLP) el campo `cents` ES EL MONTO EN PESOS ENTEROS
+ * (el peso chileno no tiene decimales). NO dividir por 100. Verificado contra
+ * formattedValue: cents:66656 ↔ "$66.656".
+ */
+function money(f?: MoneyField): number {
+  return f?.cents ?? 0;
+}
+
 export interface SkuWeekSales  { year: number; week: number; quantity: number; }
 export interface SkuAggregation {
-  sku:             string;
-  nombre:          string;
-  weeks:           SkuWeekSales[];
-  totalRevenue:    number;
-  totalNetRevenue: number;
-  totalUnits:      number;
-  margenPct:       number;
+  sku:          string;
+  nombre:       string;
+  weeks:        SkuWeekSales[];
+  // Componentes financieros (en CLP) para replicar el margen de PG por SKU:
+  income:       number;  // totalIncome  = ventas + extra tarjeta
+  salesAmount:  number;  // totalSalesAmount (bruto, sin extra tarjeta)
+  commission:   number;  // comisión del marketplace
+  shippingNet:  number;  // envío neto = costo envío − ingreso por envío
+  units:        number;  // unidades vendidas
 }
 
 // ── Helpers ──────────────────────────────────────────────────────
@@ -119,31 +134,26 @@ function processOrders(
       const sku = item.product?.sku?.trim();
       if (!sku) continue;
 
-      const priceCLP = (item.unitPrice?.cents        ?? 0) / 100;
-      const costCLP  = (item.product?.unitCost?.cents ?? 0) / 100;
-      const commCLP  = (item.commission?.cents        ?? 0) / 100;
-      const qty      = item.quantity ?? 1;
-
-      const unitMargin = priceCLP > 0
-        ? ((priceCLP - costCLP - commCLP) / priceCLP) * 100 : 0;
+      const qty         = item.quantity ?? 1;
+      // total de la línea (bruto). Si no viene, caer a unitPrice * qty.
+      const lineSales   = money(item.total) || money(item.unitPrice) * qty;
+      const ccExtra     = money(item.creditCardExtraRevenue);
+      const commission  = money(item.commission);
+      const shipNet     = money(item.shippingCost) - money(item.shippingRevenue);
 
       if (!aggregations.has(sku)) {
         aggregations.set(sku, {
           sku, nombre: item.product.name?.trim() ?? sku,
-          weeks: [], totalRevenue: 0, totalNetRevenue: 0,
-          totalUnits: 0, margenPct: 0,
+          weeks: [], income: 0, salesAmount: 0, commission: 0, shippingNet: 0, units: 0,
         });
       }
 
       const agg = aggregations.get(sku)!;
-      const prevRevenue = agg.totalRevenue;
-      agg.totalRevenue    += priceCLP * qty;
-      agg.totalNetRevenue += (priceCLP - commCLP) * qty;
-      agg.totalUnits      += qty;
-      if (agg.totalRevenue > 0) {
-        agg.margenPct =
-          (agg.margenPct * prevRevenue + unitMargin * priceCLP * qty) / agg.totalRevenue;
-      }
+      agg.salesAmount += lineSales;
+      agg.income      += lineSales + ccExtra;
+      agg.commission  += commission;
+      agg.shippingNet += shipNet;
+      agg.units       += qty;
 
       const slot = agg.weeks.find(w => w.year === year && w.week === week);
       if (slot) slot.quantity += qty;

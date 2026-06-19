@@ -97,7 +97,8 @@ function accumulate(data: unknown, spend: Map<string, number>): void {
   for (const item of extractItems(data)) {
     const sku = item.product?.sku?.trim();
     if (!sku) continue;
-    const clp = (item.cost?.cents ?? 0) / 100;
+    // En PG (CLP) el `cents` es el monto en pesos enteros: NO dividir por 100.
+    const clp = item.cost?.cents ?? 0;
     spend.set(sku, (spend.get(sku) ?? 0) + clp);
   }
 }
