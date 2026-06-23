@@ -112,6 +112,19 @@ no desde el server de Vercel. Todo lo demás SÍ sale con el Bearer (`/api/v1/*`
 
 ## 7. CHANGELOG (más reciente arriba)
 
+### 2026-06-19 (noche 5) — Modal de detalle por SKU estilo ProfitGuard ✓
+- Clon del detalle de PG (`/sales_speed/product_items/{id}`). Fuente: endpoint interno
+  `/api/internal/sales_speed/product_items/{id}/performance?group_by=week&from=YYYY-01-01&to=hoy`
+  → KPIs (totalUnits, averageIncome, marginPercentage, adSpendPercentage) + `chart.series`
+  semanal (units, stock, averageTicket, marginPercentage, adSpendPercentage).
+- El sync de navegador ahora baja TAMBIÉN el detalle por SKU (1 call /performance por item, en
+  lotes de 8). Se guarda en `velocidadData.detalle`. Esto alarga el sync a ~5 min (803 calls).
+- `/api/sku/[sku]` devuelve `detalle`. `SkuDetailModal` reescrito: KPIs estilo PG + gráfico
+  multilínea con 5 series toggleables (Inventario/Ventas/Ticket/Margen %/Publicidad %) + registro
+  de palancas. Se abre al clic en el SKU en la home.
+- Validado: CAMZEK005 → Ventas 680, Ticket $19.555, Margen 32.7%, Pub 5.2%, 26 semanas (idéntico a PG).
+- NOTA: el bookmarklet de "Datos / Sync" ahora también trae el detalle (sync ~5 min, no 30s).
+
 ### 2026-06-19 (noche 4) — Fusión Dashboard + Velocidad de Ventas ✓
 - A pedido del usuario: se eliminó el Dashboard y se llevó lo útil a Velocidad de Ventas, que
   ahora es la **home (`/`)**. La tabla de velocidad se mantuvo igual (no se tocó su funcionamiento).
