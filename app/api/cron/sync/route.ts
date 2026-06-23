@@ -32,8 +32,11 @@ export async function GET(req: Request) {
   // 1) Catálogo primero (los demás necesitan que existan los productos)
   const catalog = await call("/api/sync-catalog");
 
-  // 2) Stock (rápido y exacto vía API)
-  const stock = await call("/api/sync-stock");
+  // 2) Stock + ACoS real de ML en paralelo (ambos rápidos y exactos vía API)
+  const [stock, acos] = await Promise.all([
+    call("/api/sync-stock"),
+    call("/api/sync-acos"),
+  ]);
 
   // NOTA: el financiero (ingresos/ventas/margen/publicidad/acos) y las velocidades
   // se cargan vía el SYNC DE NAVEGADOR (/api/ingest-finance e /api/ingest-velocities),
@@ -41,5 +44,5 @@ export async function GET(req: Request) {
   // los límites de Vercel y el rate limit de la API pública. Por eso el cron NO toca
   // esos campos: evitamos sobreescribir los datos buenos del navegador con datos parciales.
 
-  return NextResponse.json({ success: true, ranAt: new Date().toISOString(), catalog, stock });
+  return NextResponse.json({ success: true, ranAt: new Date().toISOString(), catalog, stock, acos });
 }

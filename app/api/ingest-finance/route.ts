@@ -77,11 +77,11 @@ export async function POST(req: NextRequest) {
     const cogs        = (cogsMap.get(it.sku) ?? 0) * (it.units ?? 0);
     const margen      = (it.realIncome ?? 0) + (it.ccExtra ?? 0) - cogs - publicidad;
     const margenPct   = totalIncome > 0 ? Math.round((margen / totalIncome) * 1000) / 10 : 0;
-    const acos        = totalIncome > 0 ? Math.round((publicidad / totalIncome) * 1000) / 1000 : 0;
 
+    // NOTA: `acos` NO se setea aquí — es propiedad de /api/sync-acos (ACoS real de ML).
     productOps.push(() => prisma.product.update({
       where: { id },
-      data:  { ingresos: totalIncome, ventas: Math.round(it.realIncome ?? 0), margenPct, publicidad, acos },
+      data:  { ingresos: totalIncome, ventas: Math.round(it.realIncome ?? 0), margenPct, publicidad },
     }));
     updated++;
 

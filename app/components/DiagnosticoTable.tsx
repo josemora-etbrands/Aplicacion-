@@ -21,14 +21,14 @@ function weekColor(value: number, d: ProductDiagnostico): string {
   return "text-red-400";
 }
 
-function fmtAcos(publicidad: number, ingresos: number): string {
-  if (ingresos <= 0 || publicidad <= 0) return "—";
-  return `${((publicidad / ingresos) * 100).toFixed(1)}%`;
+// ACoS REAL de ML (ratio gasto/ventas atribuidas), almacenado en d.acos por /api/sync-acos.
+function fmtAcos(acos: number): string {
+  if (!acos || acos <= 0) return "—";
+  return `${(acos * 100).toFixed(1)}%`;
 }
 
-function acosColor(publicidad: number, ingresos: number): string {
-  if (ingresos <= 0 || publicidad <= 0) return "text-white/20";
-  const acos = publicidad / ingresos;
+function acosColor(acos: number): string {
+  if (!acos || acos <= 0) return "text-white/20";
   if (acos > 0.15) return "text-red-400";
   if (acos > 0.08) return "text-yellow-400";
   return "text-emerald-400";
@@ -146,9 +146,9 @@ export default function DiagnosticoTable({ diagnosticos, weekWindow }: Props) {
                 <td className={`px-4 py-2.5 font-mono ${d.margenPct < 0 ? "text-red-400" : d.margenPct < 15 ? "text-yellow-400" : "text-emerald-400"}`}>
                   {d.margenPct === 0 ? <span className="text-white/20">—</span> : `${d.margenPct.toFixed(1)}%`}
                 </td>
-                {/* ACOS */}
-                <td className={`px-4 py-2.5 font-mono ${acosColor(d.publicidad, d.ingresos)}`}>
-                  {fmtAcos(d.publicidad, d.ingresos)}
+                {/* ACOS real de ML */}
+                <td className={`px-4 py-2.5 font-mono ${acosColor(d.acos)}`}>
+                  {fmtAcos(d.acos)}
                 </td>
                 <td className="px-4 py-2.5 font-mono text-white/40">{d.velocidadInicial}</td>
                 <td className="px-4 py-2.5 font-mono text-white/40">{d.velocidadMadura}</td>
