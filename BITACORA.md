@@ -112,6 +112,14 @@ no desde el server de Vercel. Todo lo demás SÍ sale con el Bearer (`/api/v1/*`
 
 ## 7. CHANGELOG (más reciente arriba)
 
+### 2026-06-19 (noche 7) — Velocidad Inicial/Madura + targets manuales nuevos ✓
+- Columna "Velocidad" → "Velocidad Madura"; agregada "Velocidad Inicial" antes = 1/4 de la madura.
+- Los 69 productos nuevos usan velocidades inicial/madura SETEADAS A MANO (targets ET Brands),
+  en `VELOCIDADES_NUEVOS` (productosNuevos.ts). Aplica a columnas y al semáforo.
+- Resto de productos: madura = velocidad PG, inicial = madura/4. INICIAL_RATIO ingest → 0.25.
+- Helpers `maduraOf/inicialOf` en la tabla (override manual si existe). Validado: WIPESBEBE001
+  15,3/46,7; WIPESADULTO001 11,6/35.
+
 ### 2026-06-19 (noche 6) — Mejoras de detalle + filtro Producto nuevo ✓
 - Modal de detalle: **tooltip** al pasar el puntero (todas las métricas de la semana, como PG);
   palancas con **comentario**, **editar** (nuevo PATCH en palanca-log) y **eliminar**; e **impacto
