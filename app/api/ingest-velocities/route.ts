@@ -47,6 +47,8 @@ interface VelocityItem {
   totalStock?:         number;
   associationsCount?:  number;
   weeks?:              VelocityWeek[];
+  // Detalle estilo PG (KPIs + serie semanal de desempeño) para el modal de detalle.
+  detalle?:            unknown;
 }
 
 export async function POST(req: NextRequest) {
@@ -92,6 +94,7 @@ export async function POST(req: NextRequest) {
       stockTotal: it.totalStock ?? null,
       asociaciones: it.associationsCount ?? null,
       weeks: (it.weeks ?? []).map(w => ({ number: w.number, year: w.year, units: w.units })),
+      detalle: it.detalle ?? null,
     };
     // Las metas (madura/inicial) del semáforo solo se actualizan si hay velocidad real (>0);
     // el bloque velocidadData se guarda SIEMPRE para que la página /velocidad muestre todos.

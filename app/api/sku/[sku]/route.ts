@@ -31,7 +31,11 @@ export async function GET(
       ingresos:         product.ingresos,
       ventas:           product.ventas,
       acos:             product.acos,
+      categoria:        product.categoria,
+      velocidadPromedio: product.velocidadPromedio,
     },
+    // Bloque estilo ProfitGuard (KPIs + serie semanal) para el modal de detalle.
+    detalle: (product.velocidadData as { detalle?: unknown } | null)?.detalle ?? null,
     weeklySales: product.weeklySales.map(w => ({
       year: w.year, week: w.week, value: w.value,
     })),
