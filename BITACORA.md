@@ -112,6 +112,18 @@ no desde el server de Vercel. Todo lo demás SÍ sale con el Bearer (`/api/v1/*`
 
 ## 7. CHANGELOG (más reciente arriba)
 
+### 2026-06-19 (noche 2) — ACoS REAL de Mercado Libre ✓
+- Implementado el ACoS real (gasto / ventas atribuidas a ads), reemplazando el TACOS provisional.
+- Fuente: passthrough ML `/advertising/advertisers/78477/product_ads/items?metrics=cost,total_amount`
+  (server-side con Bearer, ~10s). Mapeo item MLC→SKU vía `/items?attributes=seller_custom_field`.
+  Agrega por SKU: `acos = Σcost / Σtotal_amount`. Lib: `app/lib/profitguard-acos.ts`.
+- Nuevo `/api/sync-acos` = dueño del campo `acos`. `ingest-finance` ya NO setea acos.
+  Agregado al cron diario (paralelo con stock). 139 SKUs con ACoS real.
+- Dashboard (`DiagnosticoTable`) ahora muestra `d.acos` (real) en vez de recalcular TACOS.
+- Validado vs ML: MASHOM002 6.3%/6.9%, MAN15KG001 14.1%/12.4%. Difieren un poco porque las
+  métricas de ads de ML son casi en tiempo real (la ventana incluye hoy). Resuelve deuda del ACoS.
+- Solo SKUs con actividad publicitaria tienen ACoS; el resto muestra "—" (correcto).
+
 ### 2026-06-19 (noche) — Margen estilo-PG + fix escala /100 ✓
 - **BUG CRÍTICO de escala:** los montos CLP de PG en `cents` SON pesos enteros (CLP no tiene
   decimales). El código dividía por 100 → ingresos/ventas/publicidad quedaban 100× chicos.
