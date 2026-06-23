@@ -112,6 +112,17 @@ no desde el server de Vercel. Todo lo demás SÍ sale con el Bearer (`/api/v1/*`
 
 ## 7. CHANGELOG (más reciente arriba)
 
+### 2026-06-19 (noche 4) — Fusión Dashboard + Velocidad de Ventas ✓
+- A pedido del usuario: se eliminó el Dashboard y se llevó lo útil a Velocidad de Ventas, que
+  ahora es la **home (`/`)**. La tabla de velocidad se mantuvo igual (no se tocó su funcionamiento).
+- Agregado a la home: **semáforo por SKU** (columna Estado, vía `diagnosticar()` usando la meta
+  de velocidad + semanas de PG), **lista de SKUs críticos prioritarios + palancas IA**, y
+  **modal de detalle al clic** en el SKU (SkuDetailModal).
+- Semáforo solo se calcula si velocidad > 0. Resultado: 45 🔴 / 113 🟡 / 109 🟢 / 110 ⚪.
+- Sidebar simplificado: "Velocidad de Ventas" (/) + "Datos / Sync". Eliminada ruta `/velocidad`
+  duplicada y links muertos (red-zone, ia-history, api-config).
+- Componentes viejos del dashboard (MetricCard, VelocityChart, DiagnosticoTable) quedan sin uso.
+
 ### 2026-06-19 (noche 3) — Página "Velocidad de Ventas" (espejo de PG) ✓
 - **Migración aplicada** vía `/api/admin/migrate` (raw ALTER con DATABASE_URL de Vercel, sin
   password local): columnas `categoria` TEXT, `velocidadPromedio` DOUBLE, `velocidadData` JSONB.
