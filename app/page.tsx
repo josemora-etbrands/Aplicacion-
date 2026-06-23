@@ -67,12 +67,6 @@ async function getData(): Promise<{ rows: VelocidadRow[]; error: string | null }
 export default async function HomePage() {
   const { rows, error } = await getData();
 
-  // SKUs críticos prioritarios (ROJO), ordenados por mayor brecha (menos % de meta)
-  const criticos = rows
-    .filter(r => r.status === "ROJO")
-    .sort((a, b) => a.velocidad - b.velocidad)
-    .slice(0, 6);
-
   return (
     <div className="flex h-full min-h-screen bg-[#0a0a0a]">
       <Sidebar />
@@ -88,32 +82,6 @@ export default async function HomePage() {
         </div>
 
         <div className="px-8 py-6 space-y-6">
-          {/* SKUs críticos + palancas IA */}
-          {criticos.length > 0 && (
-            <section>
-              <h2 className="text-sm font-semibold text-white/50 uppercase tracking-wider mb-3">
-                ◈ Acciones IA — SKUs Críticos Prioritarios
-              </h2>
-              <div className="rounded-xl border border-white/5 bg-[#111111]">
-                <ul className="divide-y divide-white/5">
-                  {criticos.map(d => (
-                    <li key={d.sku} className="p-4 flex items-start justify-between gap-3 flex-wrap">
-                      <div className="min-w-0">
-                        <span className="font-mono text-[#3b82f6] text-xs">{d.sku}</span>
-                        <p className="text-white text-xs font-medium mt-0.5 truncate max-w-[280px]">{d.nombre}</p>
-                      </div>
-                      <div className="flex flex-wrap gap-1 items-center">
-                        {d.palancas.map(p => (
-                          <span key={p} className="text-xs bg-[#3b82f6]/10 text-[#3b82f6] border border-[#3b82f6]/20 px-2 py-0.5 rounded-full">{p}</span>
-                        ))}
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            </section>
-          )}
-
           {/* Tabla de Velocidad de Ventas (con semáforo + detalle al clic) */}
           {rows.length === 0 && !error ? (
             <div className="rounded-xl border border-white/5 bg-[#111111] p-10 text-center text-white/40 text-sm">
