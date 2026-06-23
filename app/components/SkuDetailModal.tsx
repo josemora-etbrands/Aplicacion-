@@ -29,6 +29,8 @@ const METRICS = [
   { key: "ticket", label: "Ticket Promedio", color: "#f59e0b", get: (s: SerieWeek) => s.averageTicketCents, fmt: (v: number) => "$" + Math.round(v).toLocaleString("es-CL") },
   { key: "margin", label: "Margen %",        color: "#10b981", get: (s: SerieWeek) => s.marginPercentage,   fmt: (v: number) => v.toFixed(1) + "%" },
   { key: "ads",    label: "Publicidad %",    color: "#a855f7", get: (s: SerieWeek) => s.adSpendPercentage,  fmt: (v: number) => v.toFixed(1) + "%" },
+  // Publicidad en $ (derivada): % gasto × ingreso semanal (unidades × ticket promedio).
+  { key: "adAmount", label: "Publicidad $",  color: "#ec4899", get: (s: SerieWeek) => Math.round((s.adSpendPercentage / 100) * s.units * s.averageTicketCents), fmt: (v: number) => "$" + Math.round(v).toLocaleString("es-CL") },
 ] as const;
 
 function fmtCLP(cents: number) { return "$" + Math.round(cents).toLocaleString("es-CL"); }
@@ -269,11 +271,12 @@ export default function SkuDetailModal({ sku, onClose }: { sku: string; onClose:
 
         {!loading && !error && data && (
           <div className="p-6 space-y-6">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
               <Kpi label="Ventas Totales"  value={d ? d.totalUnits.toLocaleString("es-CL") : "—"} />
               <Kpi label="Ticket Promedio" value={d ? fmtCLP(d.averageIncomeCents) : "—"} />
               <Kpi label="Margen"          value={`${(d ? d.marginPercentage : data.product.margenPct).toFixed(1)}%`} />
-              <Kpi label="Publicidad"      value={d ? `${d.adSpendPercentage.toFixed(1)}%` : "—"} />
+              <Kpi label="Publicidad %"    value={d ? `${d.adSpendPercentage.toFixed(1)}%` : "—"} />
+              <Kpi label="Publicidad $"    value={d ? fmtCLP(d.series.reduce((s, w) => s + (w.adSpendPercentage / 100) * w.units * w.averageTicketCents, 0)) : "—"} />
             </div>
 
             <div>
