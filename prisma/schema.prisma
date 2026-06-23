@@ -47,6 +47,12 @@ model Product {
   posicionSEO      Int?
   calificacion     Float       @default(0)
 
+  // Espejo del panel "Velocidad de Ventas" de ProfitGuard (categoría ABC, promedio,
+  // semanas, asociaciones). Se llena vía el sync de navegador. JSON para fidelidad 1:1.
+  categoria        String?     // ABC: "a" | "b" | "c" | "d"
+  velocidadPromedio Float?     // averageWeeklySales
+  velocidadData    Json?       // bloque crudo del endpoint sales_speed (semanas, asociaciones, etc.)
+
   createdAt        DateTime      @default(now())
   updatedAt        DateTime      @updatedAt
   actionLogs       ActionLog[]

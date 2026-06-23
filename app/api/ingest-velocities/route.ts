@@ -38,11 +38,15 @@ export async function OPTIONS() {
 
 const INICIAL_RATIO = 0.275; // 27.5% — punto medio entre 25% y 30% (definido con negocio)
 
+interface VelocityWeek { number: number; year: number; units: number }
 interface VelocityItem {
-  sku:                string;
-  weeklySalesSpeed:   number;
-  category?:          string;
+  sku:                 string;
+  weeklySalesSpeed:    number;
+  category?:           string;
   averageWeeklySales?: number;
+  totalStock?:         number;
+  associationsCount?:  number;
+  weeks?:              VelocityWeek[];
 }
 
 export async function POST(req: NextRequest) {
@@ -80,11 +84,20 @@ export async function POST(req: NextRequest) {
     const madura = Number(it.weeklySalesSpeed);
     if (!sku || !Number.isFinite(madura) || madura <= 0) { skipped++; return; }
     const inicial = Math.max(1, Math.round(madura * INICIAL_RATIO));
+    const categoria = it.category?.toString().trim().toUpperCase() || null;
+    const promedio  = Number.isFinite(Number(it.averageWeeklySales)) ? Number(it.averageWeeklySales) : null;
+    // Bloque espejo del panel "Velocidad de Ventas" de PG (para la página /velocidad)
+    const velocidadData = {
+      categoria, velocidad: madura, promedio,
+      stockTotal: it.totalStock ?? null,
+      asociaciones: it.associationsCount ?? null,
+      weeks: (it.weeks ?? []).map(w => ({ number: w.number, year: w.year, units: w.units })),
+    };
     try {
       await prisma.product.upsert({
         where:  { sku },
-        update: { velocidadMadura: madura, velocidadInicial: inicial },
-        create: { sku, nombre: sku, velocidadMadura: madura, velocidadInicial: inicial },
+        update: { velocidadMadura: madura, velocidadInicial: inicial, categoria, velocidadPromedio: promedio, velocidadData },
+        create: { sku, nombre: sku, velocidadMadura: madura, velocidadInicial: inicial, categoria, velocidadPromedio: promedio, velocidadData },
       });
       processed++;
     } catch (err) {

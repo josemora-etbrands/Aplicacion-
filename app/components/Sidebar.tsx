@@ -4,6 +4,7 @@ import { usePathname } from "next/navigation";
 
 const nav = [
   { href: "/",          icon: "⬡", label: "Dashboard"          },
+  { href: "/velocidad", icon: "⚡", label: "Velocidad de Ventas" },
   { href: "/importar",  icon: "⟳", label: "Datos / Sync"        },
   { href: "/red-zone",  icon: "⚠", label: "Inventario Crítico"  },
   { href: "/ia-history",icon: "◈", label: "Historial de IA"     },

@@ -48,6 +48,9 @@
         weeklySalesSpeed: it.weeklySalesSpeed,
         category: it.category,
         averageWeeklySales: it.averageWeeklySales,
+        totalStock: it.totalStock,
+        associationsCount: it.associationsCount,
+        weeks: (it.weeklySales || []).map(w => ({ number: w.number, year: w.year, units: w.units })),
       });
     }
     console.log(`  · página ${page}/${totalPages} (${all.length} SKUs)`);
