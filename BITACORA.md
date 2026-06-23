@@ -112,6 +112,21 @@ no desde el server de Vercel. Todo lo demás SÍ sale con el Bearer (`/api/v1/*`
 
 ## 7. CHANGELOG (más reciente arriba)
 
+### 2026-06-19 (noche 3) — Página "Velocidad de Ventas" (espejo de PG) ✓
+- **Migración aplicada** vía `/api/admin/migrate` (raw ALTER con DATABASE_URL de Vercel, sin
+  password local): columnas `categoria` TEXT, `velocidadPromedio` DOUBLE, `velocidadData` JSONB.
+  Resuelve la deuda #7 (categoría ABC).
+- `ingest-velocities` ahora guarda categoría ABC, promedio, semanas y asociaciones (bloque
+  `velocidadData`) para TODOS los productos (incluso velocidad 0, para mostrarlos como PG).
+  Las metas del semáforo solo se actualizan si velocidad > 0.
+- **Nueva página `/velocidad`** (+ link en Sidebar): clon de la tabla de PG — Producto (+ N
+  productos/asociaciones), Categoría, Velocidad, columnas de semanas dinámicas (W##), Promedio,
+  Stock Total. Buscador, orden por cualquier columna, export CSV.
+- Validado: WIPESBEBE001 cat D / vel 400 / prom 658 / stock 15.849 (idéntico a PG). 803 productos.
+- **"Tiempo real":** el endpoint de PG es cookie-only, así que la app no puede leerlo server-side.
+  La página refleja el último sync de navegador (script `sync-velocities.js` ahora envía el bloque
+  completo). No es live al segundo, pero un clic lo deja idéntico a PG.
+
 ### 2026-06-19 (noche 2) — ACoS REAL de Mercado Libre ✓
 - Implementado el ACoS real (gasto / ventas atribuidas a ads), reemplazando el TACOS provisional.
 - Fuente: passthrough ML `/advertising/advertisers/78477/product_ads/items?metrics=cost,total_amount`
