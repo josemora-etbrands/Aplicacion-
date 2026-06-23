@@ -53,6 +53,10 @@ model Product {
   velocidadPromedio Float?     // averageWeeklySales
   velocidadData    Json?       // bloque crudo del endpoint sales_speed (semanas, asociaciones, etc.)
 
+  // Filtro "Producto nuevo": esNuevo = está en el filtro; ordenLlegada = orden de llegada.
+  esNuevo          Boolean     @default(false)
+  ordenLlegada     Int?
+
   createdAt        DateTime      @default(now())
   updatedAt        DateTime      @updatedAt
   actionLogs       ActionLog[]

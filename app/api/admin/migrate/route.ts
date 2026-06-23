@@ -15,6 +15,8 @@ const STATEMENTS = [
   `ALTER TABLE "products" ADD COLUMN IF NOT EXISTS "categoria" TEXT`,
   `ALTER TABLE "products" ADD COLUMN IF NOT EXISTS "velocidadPromedio" DOUBLE PRECISION`,
   `ALTER TABLE "products" ADD COLUMN IF NOT EXISTS "velocidadData" JSONB`,
+  `ALTER TABLE "products" ADD COLUMN IF NOT EXISTS "esNuevo" BOOLEAN NOT NULL DEFAULT false`,
+  `ALTER TABLE "products" ADD COLUMN IF NOT EXISTS "ordenLlegada" INTEGER`,
 ];
 
 export async function POST(req: NextRequest) {

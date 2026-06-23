@@ -1,7 +1,8 @@
 "use client";
 import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import SkuDetailModal from "./SkuDetailModal";
-import { ORDEN_LLEGADA, VELOCIDADES_NUEVOS } from "@/app/lib/productosNuevos";
+import { VELOCIDADES_NUEVOS } from "@/app/lib/productosNuevos";
 
 /** Madura efectiva: target manual si es producto nuevo seteado, si no el de PG. */
 function maduraOf(r: { sku: string; velocidad: number }): number {
@@ -35,6 +36,9 @@ export interface VelocidadRow {
   status?:      RowStatus;
   statusLabel?: string;
   palancas?:    string[];
+  // Filtro "Producto nuevo" (desde la DB)
+  esNuevo?:      boolean;
+  ordenLlegada?: number | null;
 }
 
 type SortKey = "velocidad" | "promedio" | "stockTotal" | "categoria" | "nombre" | "status" | string; // "w:2026-21"
@@ -60,9 +64,10 @@ export default function VelocidadTable({ rows }: { rows: VelocidadRow[] }) {
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const [selectedSku, setSelectedSku] = useState<string | null>(null);
   const [soloNuevos, setSoloNuevos] = useState(false);
+  const router = useRouter();
 
   const hasStatus = rows.some(r => r.status);
-  const nuevosCount = useMemo(() => rows.filter(r => r.sku in ORDEN_LLEGADA).length, [rows]);
+  const nuevosCount = useMemo(() => rows.filter(r => r.esNuevo).length, [rows]);
 
   // Columnas de semanas = unión de todas las semanas presentes, orden cronológico
   const weekCols = useMemo(() => {
@@ -77,13 +82,13 @@ export default function VelocidadTable({ rows }: { rows: VelocidadRow[] }) {
   const visible = useMemo(() => {
     const q = search.trim().toLowerCase();
     const filtered = rows.filter(r => {
-      if (soloNuevos && !(r.sku in ORDEN_LLEGADA)) return false;
+      if (soloNuevos && !r.esNuevo) return false;
       if (q && !r.sku.toLowerCase().includes(q) && !r.nombre.toLowerCase().includes(q)) return false;
       return true;
     });
     // Con el filtro "Producto nuevo" SIEMPRE se mantiene el orden de llegada.
     if (soloNuevos) {
-      return [...filtered].sort((a, b) => ORDEN_LLEGADA[a.sku] - ORDEN_LLEGADA[b.sku]);
+      return [...filtered].sort((a, b) => (a.ordenLlegada ?? 9e9) - (b.ordenLlegada ?? 9e9));
     }
     const rank: Record<string, number> = { ROJO: 0, SIN_STOCK: 1, AMARILLO: 2, VERDE: 3 };
     const get = (r: VelocidadRow): number | string => {
@@ -124,6 +129,31 @@ export default function VelocidadTable({ rows }: { rows: VelocidadRow[] }) {
 
   const th = "text-left px-3 py-2.5 text-white/30 font-medium uppercase tracking-wider whitespace-nowrap cursor-pointer hover:text-white/60 select-none";
 
+  // ── Gestión del filtro "Producto nuevo" (SKUs existentes del catálogo) ──
+  const [addSku, setAddSku] = useState("");
+  const [addMsg, setAddMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const agregarNuevo = async () => {
+    const sku = addSku.trim();
+    if (!sku) return;
+    setBusy(true); setAddMsg(null);
+    try {
+      const res = await fetch("/api/productos-nuevos", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sku }) });
+      const o = await res.json();
+      if (!res.ok) { setAddMsg({ ok: false, text: o.error ?? "Error" }); return; }
+      setAddMsg({ ok: true, text: o.yaEstaba ? `${sku} ya estaba en el filtro` : `✓ ${sku} agregado` });
+      setAddSku(""); router.refresh();
+    } catch { setAddMsg({ ok: false, text: "Error de red" }); }
+    finally { setBusy(false); }
+  };
+
+  const quitarNuevo = async (sku: string) => {
+    setBusy(true);
+    try { await fetch(`/api/productos-nuevos?sku=${encodeURIComponent(sku)}`, { method: "DELETE" }); router.refresh(); }
+    finally { setBusy(false); }
+  };
+
   return (
     <div className="space-y-3">
       {selectedSku && <SkuDetailModal sku={selectedSku} onClose={() => setSelectedSku(null)} />}
@@ -147,6 +177,25 @@ export default function VelocidadTable({ rows }: { rows: VelocidadRow[] }) {
           ⭳ Exportar CSV
         </button>
       </div>
+
+      {/* Gestión del filtro "Producto nuevo" — agregar un SKU existente */}
+      {soloNuevos && (
+        <div className="rounded-xl border border-emerald-500/15 bg-emerald-500/[0.04] p-3 flex items-center gap-2 flex-wrap">
+          <span className="text-xs text-white/40">Agregar SKU existente al filtro:</span>
+          <input
+            type="text" placeholder="SKU…" value={addSku}
+            onChange={e => setAddSku(e.target.value.toUpperCase())}
+            onKeyDown={e => { if (e.key === "Enter") agregarNuevo(); }}
+            className="bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white placeholder-white/30 focus:outline-none focus:border-emerald-500/50 w-48 font-mono"
+          />
+          <button onClick={agregarNuevo} disabled={busy || !addSku.trim()}
+            className="text-xs bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-white px-3 py-1.5 rounded-lg">
+            {busy ? "…" : "Agregar"}
+          </button>
+          {addMsg && <span className={`text-xs ${addMsg.ok ? "text-emerald-400" : "text-red-400"}`}>{addMsg.text}</span>}
+          <span className="text-white/20 text-[11px] ml-auto">Se agrega al final (orden de llegada).</span>
+        </div>
+      )}
 
       <div className="rounded-xl border border-white/5 bg-[#111111] overflow-hidden">
         <div className="overflow-x-auto">
@@ -176,6 +225,10 @@ export default function VelocidadTable({ rows }: { rows: VelocidadRow[] }) {
                       {r.sku}
                     </button>
                     {r.asociaciones > 1 && <span className="text-white/30 ml-1">({r.asociaciones} productos)</span>}
+                    {soloNuevos && (
+                      <button onClick={() => quitarNuevo(r.sku)} title="Quitar del filtro"
+                        className="ml-2 text-white/20 hover:text-red-400 text-xs">✕</button>
+                    )}
                     <span className="block text-white/60 truncate">{r.nombre}</span>
                   </td>
                   <td className={`px-3 py-2.5 font-semibold ${catColor[r.categoria] ?? "text-white/40"}`}>{r.categoria || "—"}</td>
