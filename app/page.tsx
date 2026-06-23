@@ -39,7 +39,7 @@ async function getData(): Promise<{ rows: VelocidadRow[]; error: string | null }
         const dg = diagnosticar({
           sku: p.sku, nombre: p.nombre,
           weekHistory: weeks.map(w => ({ year: w.year, week: w.number, value: w.units })),
-          velocidadInicial: p.velocidadInicial, velocidadMadura: p.velocidadMadura,
+          velocidadInicial: Math.round(velocidad / 4), velocidadMadura: velocidad,
           margenPct: p.margenPct, acos: p.acos,
           publicidad: p.publicidad, ventas: p.ventas, ingresos: p.ingresos,
           stock: stockTotal,

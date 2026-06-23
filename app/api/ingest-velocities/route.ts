@@ -36,7 +36,7 @@ export async function OPTIONS() {
   return new NextResponse(null, { status: 204, headers: CORS });
 }
 
-const INICIAL_RATIO = 0.275; // 27.5% — punto medio entre 25% y 30% (definido con negocio)
+const INICIAL_RATIO = 0.25; // 1/4 de la meta madura (definido con negocio)
 
 interface VelocityWeek { number: number; year: number; units: number }
 interface VelocityItem {

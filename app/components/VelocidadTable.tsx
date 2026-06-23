@@ -137,7 +137,8 @@ export default function VelocidadTable({ rows }: { rows: VelocidadRow[] }) {
               <tr className="border-b border-white/5">
                 <th className={th} onClick={() => toggleSort("nombre")}>Producto{arrow("nombre")}</th>
                 <th className={th} onClick={() => toggleSort("categoria")}>Categoría{arrow("categoria")}</th>
-                <th className={th} onClick={() => toggleSort("velocidad")}>Velocidad{arrow("velocidad")}</th>
+                <th className={th} onClick={() => toggleSort("velocidad")}>Velocidad Inicial{arrow("velocidad")}</th>
+                <th className={th} onClick={() => toggleSort("velocidad")}>Velocidad Madura{arrow("velocidad")}</th>
                 {weekCols.map(w => (
                   <th key={`${w.year}-${w.number}`} className={`${th} text-center`} onClick={() => toggleSort(`w:${w.year}-${w.number}`)}>
                     W{w.number}{arrow(`w:${w.year}-${w.number}`)}
@@ -160,6 +161,7 @@ export default function VelocidadTable({ rows }: { rows: VelocidadRow[] }) {
                     <span className="block text-white/60 truncate">{r.nombre}</span>
                   </td>
                   <td className={`px-3 py-2.5 font-semibold ${catColor[r.categoria] ?? "text-white/40"}`}>{r.categoria || "—"}</td>
+                  <td className="px-3 py-2.5 font-mono text-white/50">{fmt(Math.round(r.velocidad / 4))}</td>
                   <td className="px-3 py-2.5 font-mono text-white/80">{fmt(r.velocidad)}</td>
                   {weekCols.map(w => {
                     const v = weekVal(r, w.year, w.number);
