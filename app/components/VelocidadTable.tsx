@@ -1,7 +1,17 @@
 "use client";
 import { useMemo, useState } from "react";
 import SkuDetailModal from "./SkuDetailModal";
-import { ORDEN_LLEGADA } from "@/app/lib/productosNuevos";
+import { ORDEN_LLEGADA, VELOCIDADES_NUEVOS } from "@/app/lib/productosNuevos";
+
+/** Madura efectiva: target manual si es producto nuevo seteado, si no el de PG. */
+function maduraOf(r: { sku: string; velocidad: number }): number {
+  return VELOCIDADES_NUEVOS[r.sku]?.madura ?? r.velocidad;
+}
+/** Inicial efectiva: target manual si existe, si no 1/4 de la madura. */
+function inicialOf(r: { sku: string; velocidad: number }): number {
+  const ov = VELOCIDADES_NUEVOS[r.sku];
+  return ov ? ov.inicial : Math.round(r.velocidad / 4);
+}
 
 export type RowStatus = "VERDE" | "AMARILLO" | "ROJO" | "SIN_STOCK" | null;
 
@@ -75,6 +85,7 @@ export default function VelocidadTable({ rows }: { rows: VelocidadRow[] }) {
         return weekVal(r, y, n);
       }
       if (sortKey === "status") return rank[r.status ?? ""] ?? 9;
+      if (sortKey === "velocidad") return maduraOf(r);
       return (r as unknown as Record<string, number | string>)[sortKey];
     };
     return [...filtered].sort((a, b) => {
@@ -161,8 +172,8 @@ export default function VelocidadTable({ rows }: { rows: VelocidadRow[] }) {
                     <span className="block text-white/60 truncate">{r.nombre}</span>
                   </td>
                   <td className={`px-3 py-2.5 font-semibold ${catColor[r.categoria] ?? "text-white/40"}`}>{r.categoria || "—"}</td>
-                  <td className="px-3 py-2.5 font-mono text-white/50">{fmt(Math.round(r.velocidad / 4))}</td>
-                  <td className="px-3 py-2.5 font-mono text-white/80">{fmt(r.velocidad)}</td>
+                  <td className="px-3 py-2.5 font-mono text-white/50">{fmt(inicialOf(r))}</td>
+                  <td className="px-3 py-2.5 font-mono text-white/80">{fmt(maduraOf(r))}</td>
                   {weekCols.map(w => {
                     const v = weekVal(r, w.year, w.number);
                     return <td key={`${w.year}-${w.number}`} className="px-3 py-2.5 text-center font-mono text-white/60">{v ? fmt(v) : <span className="text-white/15">—</span>}</td>;

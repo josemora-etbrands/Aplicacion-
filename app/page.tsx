@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import Sidebar from "@/app/components/Sidebar";
 import VelocidadTable, { type VelocidadRow } from "@/app/components/VelocidadTable";
 import { diagnosticar } from "@/app/lib/diagnostico";
+import { VELOCIDADES_NUEVOS } from "@/app/lib/productosNuevos";
 
 export const dynamic = "force-dynamic";
 
@@ -31,15 +32,20 @@ async function getData(): Promise<{ rows: VelocidadRow[]; error: string | null }
       const stockTotal = Number(d.stockTotal ?? p.stock ?? 0);
       const velocidad  = Number(d.velocidad ?? 0);
 
+      // Targets: manual si es producto nuevo seteado, si no derivado de la madura de PG.
+      const ov = VELOCIDADES_NUEVOS[p.sku];
+      const maduraEff  = ov ? ov.madura : velocidad;
+      const inicialEff = ov ? ov.inicial : Math.round(velocidad / 4);
+
       // Semáforo: solo tiene sentido si hay meta de velocidad (>0).
       let status: VelocidadRow["status"] = null;
       let statusLabel = "";
       let palancas: string[] = [];
-      if (velocidad > 0) {
+      if (maduraEff > 0) {
         const dg = diagnosticar({
           sku: p.sku, nombre: p.nombre,
           weekHistory: weeks.map(w => ({ year: w.year, week: w.number, value: w.units })),
-          velocidadInicial: Math.round(velocidad / 4), velocidadMadura: velocidad,
+          velocidadInicial: inicialEff, velocidadMadura: maduraEff,
           margenPct: p.margenPct, acos: p.acos,
           publicidad: p.publicidad, ventas: p.ventas, ingresos: p.ingresos,
           stock: stockTotal,
