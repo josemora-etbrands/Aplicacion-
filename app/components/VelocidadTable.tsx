@@ -1,6 +1,7 @@
 "use client";
 import { useMemo, useState } from "react";
 import SkuDetailModal from "./SkuDetailModal";
+import { ORDEN_LLEGADA } from "@/app/lib/productosNuevos";
 
 export type RowStatus = "VERDE" | "AMARILLO" | "ROJO" | "SIN_STOCK" | null;
 
@@ -41,8 +42,10 @@ export default function VelocidadTable({ rows }: { rows: VelocidadRow[] }) {
   const [sortKey, setSortKey] = useState<SortKey>("velocidad");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const [selectedSku, setSelectedSku] = useState<string | null>(null);
+  const [soloNuevos, setSoloNuevos] = useState(false);
 
   const hasStatus = rows.some(r => r.status);
+  const nuevosCount = useMemo(() => rows.filter(r => r.sku in ORDEN_LLEGADA).length, [rows]);
 
   // Columnas de semanas = unión de todas las semanas presentes, orden cronológico
   const weekCols = useMemo(() => {
@@ -56,8 +59,15 @@ export default function VelocidadTable({ rows }: { rows: VelocidadRow[] }) {
 
   const visible = useMemo(() => {
     const q = search.trim().toLowerCase();
-    const filtered = rows.filter(r =>
-      !q || r.sku.toLowerCase().includes(q) || r.nombre.toLowerCase().includes(q));
+    const filtered = rows.filter(r => {
+      if (soloNuevos && !(r.sku in ORDEN_LLEGADA)) return false;
+      if (q && !r.sku.toLowerCase().includes(q) && !r.nombre.toLowerCase().includes(q)) return false;
+      return true;
+    });
+    // Con el filtro "Producto nuevo" SIEMPRE se mantiene el orden de llegada.
+    if (soloNuevos) {
+      return [...filtered].sort((a, b) => ORDEN_LLEGADA[a.sku] - ORDEN_LLEGADA[b.sku]);
+    }
     const rank: Record<string, number> = { ROJO: 0, SIN_STOCK: 1, AMARILLO: 2, VERDE: 3 };
     const get = (r: VelocidadRow): number | string => {
       if (sortKey.startsWith("w:")) {
@@ -73,7 +83,7 @@ export default function VelocidadTable({ rows }: { rows: VelocidadRow[] }) {
         ? va - vb : String(va).localeCompare(String(vb));
       return sortDir === "asc" ? cmp : -cmp;
     });
-  }, [rows, search, sortKey, sortDir]);
+  }, [rows, search, sortKey, sortDir, soloNuevos]);
 
   const toggleSort = (k: SortKey) => {
     if (sortKey === k) setSortDir(d => d === "asc" ? "desc" : "asc");
@@ -103,8 +113,16 @@ export default function VelocidadTable({ rows }: { rows: VelocidadRow[] }) {
         <input
           type="text" placeholder="Buscar por nombre o SKU…"
           value={search} onChange={e => setSearch(e.target.value)}
-          className="bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-xs text-white placeholder-white/30 focus:outline-none focus:border-[#3b82f6]/50 w-72"
+          className="bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-xs text-white placeholder-white/30 focus:outline-none focus:border-[#3b82f6]/50 w-64"
         />
+        <button onClick={() => setSoloNuevos(false)}
+          className={`text-xs px-3 py-2 rounded-lg border transition-colors ${!soloNuevos ? "bg-[#3b82f6]/20 text-[#3b82f6] border-[#3b82f6]/30" : "text-white/30 border-white/10 hover:border-white/20"}`}>
+          Todos
+        </button>
+        <button onClick={() => setSoloNuevos(true)}
+          className={`text-xs px-3 py-2 rounded-lg border transition-colors ${soloNuevos ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/30" : "text-white/30 border-white/10 hover:border-white/20"}`}>
+          ✨ Producto nuevo ({nuevosCount})
+        </button>
         <span className="text-xs text-white/20">{visible.length} productos</span>
         <button onClick={exportCsv}
           className="ml-auto text-xs bg-white/5 hover:bg-white/10 border border-white/10 text-white/60 px-3 py-2 rounded-lg transition-colors">
