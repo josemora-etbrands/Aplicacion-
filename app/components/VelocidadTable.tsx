@@ -12,6 +12,13 @@ function inicialOf(r: { sku: string; velocidad: number }): number {
   const ov = VELOCIDADES_NUEVOS[r.sku];
   return ov ? ov.inicial : Math.round(r.velocidad / 4);
 }
+/** Color de la venta semanal vs metas: verde ≥ madura, amarillo ≥ inicial, blanco < inicial. */
+function weekColor(v: number, inicial: number, madura: number): string {
+  if (v <= 0) return "text-white/15";
+  if (madura > 0 && v >= madura) return "text-emerald-400";
+  if (inicial > 0 && v >= inicial) return "text-yellow-400";
+  return "text-white/80";
+}
 
 export type RowStatus = "VERDE" | "AMARILLO" | "ROJO" | "SIN_STOCK" | null;
 
@@ -176,7 +183,7 @@ export default function VelocidadTable({ rows }: { rows: VelocidadRow[] }) {
                   <td className="px-3 py-2.5 font-mono text-white/80">{fmt(maduraOf(r))}</td>
                   {weekCols.map(w => {
                     const v = weekVal(r, w.year, w.number);
-                    return <td key={`${w.year}-${w.number}`} className="px-3 py-2.5 text-center font-mono text-white/60">{v ? fmt(v) : <span className="text-white/15">—</span>}</td>;
+                    return <td key={`${w.year}-${w.number}`} className={`px-3 py-2.5 text-center font-mono ${weekColor(v, inicialOf(r), maduraOf(r))}`}>{v ? fmt(v) : "—"}</td>;
                   })}
                   <td className="px-3 py-2.5 font-mono text-white/70">{fmt(r.promedio)}</td>
                   <td className="px-3 py-2.5 font-mono text-white/50">{fmt(r.stockTotal)}</td>
