@@ -57,6 +57,9 @@ model Product {
   esNuevo          Boolean     @default(false)
   ordenLlegada     Int?
 
+  // Marca manual "Listo" (revisado) que sobreescribe el estado del semáforo en la UI.
+  listo            Boolean     @default(false)
+
   createdAt        DateTime      @default(now())
   updatedAt        DateTime      @updatedAt
   actionLogs       ActionLog[]

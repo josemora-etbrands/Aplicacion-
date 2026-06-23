@@ -39,6 +39,8 @@ export interface VelocidadRow {
   // Filtro "Producto nuevo" (desde la DB)
   esNuevo?:      boolean;
   ordenLlegada?: number | null;
+  // Marca manual "Listo"
+  listo?:        boolean;
 }
 
 type SortKey = "velocidad" | "promedio" | "stockTotal" | "categoria" | "nombre" | "status" | string; // "w:2026-21"
@@ -68,6 +70,19 @@ export default function VelocidadTable({ rows }: { rows: VelocidadRow[] }) {
 
   const hasStatus = rows.some(r => r.status);
   const nuevosCount = useMemo(() => rows.filter(r => r.esNuevo).length, [rows]);
+
+  // Marca "Listo" — estado local optimista (sin recargar toda la tabla)
+  const [listoSet, setListoSet] = useState<Set<string>>(() => new Set(rows.filter(r => r.listo).map(r => r.sku)));
+  const toggleListo = async (sku: string) => {
+    const nuevo = !listoSet.has(sku);
+    setListoSet(prev => { const s = new Set(prev); nuevo ? s.add(sku) : s.delete(sku); return s; });
+    try {
+      await fetch("/api/marcar-listo", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sku, listo: nuevo }) });
+    } catch {
+      // revertir si falla
+      setListoSet(prev => { const s = new Set(prev); nuevo ? s.delete(sku) : s.add(sku); return s; });
+    }
+  };
 
   // Columnas de semanas = unión de todas las semanas presentes, orden cronológico
   const weekCols = useMemo(() => {
@@ -242,9 +257,18 @@ export default function VelocidadTable({ rows }: { rows: VelocidadRow[] }) {
                   <td className="px-3 py-2.5 font-mono text-white/50">{fmt(r.stockTotal)}</td>
                   {hasStatus && (
                     <td className="px-3 py-2.5">
-                      {r.status
-                        ? <span className={`border px-2 py-0.5 rounded-full text-xs font-medium ${statusStyle[r.status]}`}>{r.statusLabel}</span>
-                        : <span className="text-white/15">—</span>}
+                      <div className="flex items-center gap-2">
+                        {listoSet.has(r.sku)
+                          ? <span className="border px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-500/15 text-emerald-300 border-emerald-500/30">Listo</span>
+                          : r.status
+                            ? <span className={`border px-2 py-0.5 rounded-full text-xs font-medium ${statusStyle[r.status]}`}>{r.statusLabel}</span>
+                            : <span className="text-white/15">—</span>}
+                        <button onClick={() => toggleListo(r.sku)}
+                          title={listoSet.has(r.sku) ? "Quitar Listo" : "Marcar Listo"}
+                          className={`w-5 h-5 rounded-full border flex items-center justify-center text-[11px] leading-none transition-colors ${listoSet.has(r.sku) ? "bg-emerald-500/30 text-emerald-300 border-emerald-500/50" : "border-white/15 text-white/25 hover:text-emerald-400 hover:border-emerald-500/40"}`}>
+                          ✓
+                        </button>
+                      </div>
                     </td>
                   )}
                 </tr>

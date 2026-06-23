@@ -23,7 +23,7 @@ async function getData(): Promise<{ rows: VelocidadRow[]; error: string | null }
         sku: true, nombre: true, stock: true, velocidadData: true,
         velocidadInicial: true, velocidadMadura: true,
         margenPct: true, acos: true, publicidad: true, ventas: true, ingresos: true,
-        esNuevo: true, ordenLlegada: true,
+        esNuevo: true, ordenLlegada: true, listo: true,
       },
     });
 
@@ -62,7 +62,7 @@ async function getData(): Promise<{ rows: VelocidadRow[]; error: string | null }
         velocidad, promedio: Number(d.promedio ?? 0), stockTotal,
         asociaciones: Number(d.asociaciones ?? 0), weeks,
         status, statusLabel, palancas,
-        esNuevo: p.esNuevo, ordenLlegada: p.ordenLlegada ?? null,
+        esNuevo: p.esNuevo, ordenLlegada: p.ordenLlegada ?? null, listo: p.listo,
       };
     });
 
