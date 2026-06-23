@@ -81,9 +81,9 @@ export async function POST(req: NextRequest) {
 
   const ops = items.map((it) => async () => {
     const sku = it.sku?.toString().trim();
-    const madura = Number(it.weeklySalesSpeed);
-    if (!sku || !Number.isFinite(madura) || madura <= 0) { skipped++; return; }
-    const inicial = Math.max(1, Math.round(madura * INICIAL_RATIO));
+    if (!sku) { skipped++; return; }
+    const madura = Number(it.weeklySalesSpeed) || 0;
+    const inicial = madura > 0 ? Math.max(1, Math.round(madura * INICIAL_RATIO)) : 0;
     const categoria = it.category?.toString().trim().toUpperCase() || null;
     const promedio  = Number.isFinite(Number(it.averageWeeklySales)) ? Number(it.averageWeeklySales) : null;
     // Bloque espejo del panel "Velocidad de Ventas" de PG (para la página /velocidad)
@@ -93,10 +93,13 @@ export async function POST(req: NextRequest) {
       asociaciones: it.associationsCount ?? null,
       weeks: (it.weeks ?? []).map(w => ({ number: w.number, year: w.year, units: w.units })),
     };
+    // Las metas (madura/inicial) del semáforo solo se actualizan si hay velocidad real (>0);
+    // el bloque velocidadData se guarda SIEMPRE para que la página /velocidad muestre todos.
+    const metaFields = madura > 0 ? { velocidadMadura: madura, velocidadInicial: inicial } : {};
     try {
       await prisma.product.upsert({
         where:  { sku },
-        update: { velocidadMadura: madura, velocidadInicial: inicial, categoria, velocidadPromedio: promedio, velocidadData },
+        update: { ...metaFields, categoria, velocidadPromedio: promedio, velocidadData },
         create: { sku, nombre: sku, velocidadMadura: madura, velocidadInicial: inicial, categoria, velocidadPromedio: promedio, velocidadData },
       });
       processed++;
