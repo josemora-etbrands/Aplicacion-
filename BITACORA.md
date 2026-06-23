@@ -112,6 +112,16 @@ no desde el server de Vercel. Todo lo demás SÍ sale con el Bearer (`/api/v1/*`
 
 ## 7. CHANGELOG (más reciente arriba)
 
+### 2026-06-19 (noche 8) — Gestión del filtro "Producto nuevo" desde la app ✓
+- Migración: columnas `esNuevo` (bool) + `ordenLlegada` (int) en products. El filtro y el orden
+  de llegada ahora viven en la DB (no en código). Sembrados los 69 desde el código (orden 0..68).
+- `/api/productos-nuevos` (GET/POST/DELETE + seed). POST solo marca SKUs EXISTENTES (no crea);
+  ordenLlegada = último + 1. UI en la tabla: agregar SKU al filtro + quitar (✕) por fila.
+- Coloreo de ventas semanales: verde ≥ madura, amarillo ≥ inicial, blanco < inicial.
+- Detalle por SKU: agregada "Publicidad $" (KPI + serie) derivada de % × unidades × ticket.
+- Las velocidades manuales de los 69 siguen en `VELOCIDADES_NUEVOS` (código); SKUs agregados por
+  la app usan madura PG / inicial = ¼ salvo que se les setee target manual.
+
 ### 2026-06-19 (noche 7) — Velocidad Inicial/Madura + targets manuales nuevos ✓
 - Columna "Velocidad" → "Velocidad Madura"; agregada "Velocidad Inicial" antes = 1/4 de la madura.
 - Los 69 productos nuevos usan velocidades inicial/madura SETEADAS A MANO (targets ET Brands),
