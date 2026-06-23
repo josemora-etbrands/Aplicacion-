@@ -112,6 +112,15 @@ no desde el server de Vercel. Todo lo demás SÍ sale con el Bearer (`/api/v1/*`
 
 ## 7. CHANGELOG (más reciente arriba)
 
+### 2026-06-19 (noche 6) — Mejoras de detalle + filtro Producto nuevo ✓
+- Modal de detalle: **tooltip** al pasar el puntero (todas las métricas de la semana, como PG);
+  palancas con **comentario**, **editar** (nuevo PATCH en palanca-log) y **eliminar**; e **impacto
+  en unidades** por palanca (prom 4 sem después vs 4 antes → "▲ aumentó en X uds" / "▼ bajó en X").
+- Quitada la sección "Acciones IA — SKUs Críticos" de la home (a pedido del usuario).
+- **Filtro "Producto nuevo"** en la tabla: lista en `app/lib/productosNuevos.ts` (69 SKUs en
+  ORDEN DE LLEGADA = orden del array). Al activarlo, muestra solo esos SKUs y SIEMPRE en orden
+  de llegada (override del sort). **Para agregar nuevos: añadirlos AL FINAL del array.**
+
 ### 2026-06-19 (noche 5) — Modal de detalle por SKU estilo ProfitGuard ✓
 - Clon del detalle de PG (`/sales_speed/product_items/{id}`). Fuente: endpoint interno
   `/api/internal/sales_speed/product_items/{id}/performance?group_by=week&from=YYYY-01-01&to=hoy`
