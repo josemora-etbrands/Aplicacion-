@@ -112,6 +112,11 @@ no desde el server de Vercel. Todo lo demás SÍ sale con el Bearer (`/api/v1/*`
 
 ## 7. CHANGELOG (más reciente arriba)
 
+### 2026-06-19 (noche 9) — Botón "Listo" por SKU en Estado ✓
+- Columna `listo` (bool) en products (migración). `/api/marcar-listo` (POST {sku, listo}).
+- En la columna Estado, botón ✓ a la derecha del badge: marca el SKU como "Listo" (badge verde
+  que sobreescribe el estado del semáforo). Toggle optimista (sin recargar) + persiste en DB.
+
 ### 2026-06-19 (noche 8) — Gestión del filtro "Producto nuevo" desde la app ✓
 - Migración: columnas `esNuevo` (bool) + `ordenLlegada` (int) en products. El filtro y el orden
   de llegada ahora viven en la DB (no en código). Sembrados los 69 desde el código (orden 0..68).
