@@ -112,6 +112,14 @@ no desde el server de Vercel. Todo lo demás SÍ sale con el Bearer (`/api/v1/*`
 
 ## 7. CHANGELOG (más reciente arriba)
 
+### 2026-06-23 (cont.) — Detalle por Día/Semana/Mes + período ✓
+- El detalle por SKU trae la serie DIARIA del año (`group_by=day`) y el modal permite elegir
+  granularidad (Día/Semana/Mes) y período (año/90/30/14 días), agregando client-side. KPIs se
+  recalculan por período. Impacto de palancas recalculado desde la serie diaria.
+- **GOTCHA:** PG devuelve `stock=0` en `group_by=day` (solo tiene stock por semana). Fix: el sync
+  trae también `group_by=week` y fusiona el stock semanal en cada día (por su semana ISO). Por eso
+  el sync ahora hace 2 calls/SKU (~8-10 min). Verificado: stock diario poblado (máx 660).
+
 ### 2026-06-23 — Rediseño claro + mejoras de UX ✓
 - **Rediseño completo a tema claro** (Linear/Notion): fondo slate-50, cards blancas, acento azul.
   Toda la funcionalidad intacta. Logo ET Brands (SVG) en el sidebar.
