@@ -47,9 +47,9 @@ export interface VelocidadRow {
 
 function margenColor(m: number | null | undefined): string {
   if (m == null) return "text-slate-300";
-  if (m < 0) return "text-red-600";
-  if (m < 15) return "text-amber-600";
-  return "text-emerald-600";
+  if (m < 20) return "text-red-600";    // ≤ 19.9%
+  if (m < 30) return "text-amber-600";  // 20 – 29.9%
+  return "text-emerald-600";            // ≥ 30%
 }
 
 type SortKey = "velocidad" | "promedio" | "stockTotal" | "categoria" | "nombre" | "status" | string; // "w:2026-21"
