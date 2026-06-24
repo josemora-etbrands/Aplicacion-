@@ -233,7 +233,7 @@ export default function VelocidadTable({ rows }: { rows: VelocidadRow[] }) {
             </thead>
             <tbody>
               {visible.map((r) => (
-                <tr key={r.sku} className="border-b border-slate-100 last:border-0 hover:bg-slate-50">
+                <tr key={r.sku} className={`border-b border-slate-100 last:border-0 transition-colors ${listoSet.has(r.sku) ? "bg-emerald-50/60 hover:bg-emerald-100/60" : "hover:bg-slate-50"}`}>
                   <td className="px-3 py-2.5 max-w-[280px]">
                     <button onClick={() => setSelectedSku(r.sku)}
                       className="font-mono text-blue-600 hover:text-blue-700 hover:underline underline-offset-2 cursor-pointer">
