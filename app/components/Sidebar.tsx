@@ -6,6 +6,7 @@ import Logo from "./Logo";
 const nav = [
   { href: "/",          icon: "⚡", label: "Velocidad de Ventas" },
   { href: "/importar",  icon: "⟳", label: "Datos / Sync"        },
+  { href: "/tareas",    icon: "✓", label: "Tareas"              },
 ];
 
 export default function Sidebar() {
