@@ -7,16 +7,15 @@ interface PalancaLog { id: string; tipoPalanca: string; fechaInicio: string; com
 interface ProductDetail {
   sku: string; nombre: string; categoria?: string | null;
   margenPct: number; stock: number; publicidad: number; ingresos: number; ventas: number; acos: number;
-  velocidadPromedio?: number | null;
-  fechaLlegada?: string | null;
+  velocidadPromedio?: number | null; fechaLlegada?: string | null;
 }
-interface SerieWeek {
-  label: string; units: number; stock: number;
+interface SeriePoint {
+  date?: string; label: string; units: number; stock: number;
   averageTicketCents: number; marginPercentage: number; adSpendPercentage: number;
 }
 interface Detalle {
   totalUnits: number; averageIncomeCents: number; marginPercentage: number; adSpendPercentage: number;
-  series: SerieWeek[];
+  series: SeriePoint[];
 }
 interface SkuData { product: ProductDetail; detalle: Detalle | null; palancaLogs: PalancaLog[]; }
 
@@ -27,43 +26,73 @@ const PALANCA_OPTIONS = [
 ];
 
 const METRICS = [
-  { key: "stock",  label: "Inventario",      color: "#22d3ee", get: (s: SerieWeek) => s.stock,              fmt: (v: number) => v.toLocaleString("es-CL") },
-  { key: "units",  label: "Ventas",          color: "#ef4444", get: (s: SerieWeek) => s.units,              fmt: (v: number) => v.toLocaleString("es-CL") },
-  { key: "ticket", label: "Ticket Promedio", color: "#f59e0b", get: (s: SerieWeek) => s.averageTicketCents, fmt: (v: number) => "$" + Math.round(v).toLocaleString("es-CL") },
-  { key: "margin", label: "Margen %",        color: "#10b981", get: (s: SerieWeek) => s.marginPercentage,   fmt: (v: number) => v.toFixed(1) + "%" },
-  { key: "ads",    label: "Publicidad %",    color: "#a855f7", get: (s: SerieWeek) => s.adSpendPercentage,  fmt: (v: number) => v.toFixed(1) + "%" },
-  // Publicidad en $ (derivada): % gasto × ingreso semanal (unidades × ticket promedio).
-  { key: "adAmount", label: "Publicidad $",  color: "#ec4899", get: (s: SerieWeek) => Math.round((s.adSpendPercentage / 100) * s.units * s.averageTicketCents), fmt: (v: number) => "$" + Math.round(v).toLocaleString("es-CL") },
+  { key: "stock",  label: "Inventario",      color: "#22d3ee", get: (s: SeriePoint) => s.stock,              fmt: (v: number) => v.toLocaleString("es-CL") },
+  { key: "units",  label: "Ventas",          color: "#ef4444", get: (s: SeriePoint) => s.units,              fmt: (v: number) => v.toLocaleString("es-CL") },
+  { key: "ticket", label: "Ticket Promedio", color: "#f59e0b", get: (s: SeriePoint) => s.averageTicketCents, fmt: (v: number) => "$" + Math.round(v).toLocaleString("es-CL") },
+  { key: "margin", label: "Margen %",        color: "#10b981", get: (s: SeriePoint) => s.marginPercentage,   fmt: (v: number) => v.toFixed(1) + "%" },
+  { key: "ads",    label: "Publicidad %",    color: "#a855f7", get: (s: SeriePoint) => s.adSpendPercentage,  fmt: (v: number) => v.toFixed(1) + "%" },
+  { key: "adAmount", label: "Publicidad $",  color: "#ec4899", get: (s: SeriePoint) => Math.round((s.adSpendPercentage / 100) * s.units * s.averageTicketCents), fmt: (v: number) => "$" + Math.round(v).toLocaleString("es-CL") },
 ] as const;
 
 function fmtCLP(cents: number) { return "$" + Math.round(cents).toLocaleString("es-CL"); }
 function fmtDate(iso: string) { return new Date(iso).toLocaleDateString("es-CL", { day: "2-digit", month: "short", year: "numeric" }); }
-function isoWeek(dateStr: string): number {
-  const d = new Date(dateStr);
-  const dt = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+function isoWeekNum(d: Date): number {
+  const dt = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
   dt.setUTCDate(dt.getUTCDate() + 4 - (dt.getUTCDay() || 7));
   const ys = new Date(Date.UTC(dt.getUTCFullYear(), 0, 1));
   return Math.ceil((((dt.getTime() - ys.getTime()) / 86400000) + 1) / 7);
 }
+const MESES = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
 
-/* Impacto en unidades: promedio de hasta 4 semanas después vs 4 antes de la palanca. */
-function impactoUnidades(fechaInicio: string, series: SerieWeek[]): number | null {
-  if (!series.length) return null;
-  const wk = isoWeek(fechaInicio);
-  const idx = series.findIndex(s => s.label === "W" + wk);
-  if (idx < 0) return null;
-  const before = series.slice(Math.max(0, idx - 4), idx).map(s => s.units);
-  const after  = series.slice(idx + 1, idx + 5).map(s => s.units);
+type Gran = "dia" | "semana" | "mes";
+type Periodo = "anio" | "90" | "30" | "14";
+
+/** Agrega puntos diarios a la granularidad pedida (sum unidades, ponderado por ingreso el resto). */
+function agregar(points: SeriePoint[], gran: Gran): SeriePoint[] {
+  if (gran === "dia") return points;
+  const groups = new Map<string, { label: string; pts: SeriePoint[] }>();
+  for (const p of points) {
+    if (!p.date) continue;
+    const d = new Date(p.date);
+    const key = gran === "mes" ? `${d.getUTCFullYear()}-${d.getUTCMonth()}` : `${d.getUTCFullYear()}-W${isoWeekNum(d)}`;
+    const label = gran === "mes" ? MESES[d.getUTCMonth()] : `W${isoWeekNum(d)}`;
+    if (!groups.has(key)) groups.set(key, { label, pts: [] });
+    groups.get(key)!.pts.push(p);
+  }
+  return [...groups.values()].map(({ label, pts }) => {
+    const units = pts.reduce((s, p) => s + p.units, 0);
+    const income = pts.reduce((s, p) => s + p.units * p.averageTicketCents, 0);
+    const wMargin = income > 0 ? pts.reduce((s, p) => s + p.marginPercentage * p.units * p.averageTicketCents, 0) / income : avg(pts.map(p => p.marginPercentage));
+    const wAds    = income > 0 ? pts.reduce((s, p) => s + p.adSpendPercentage * p.units * p.averageTicketCents, 0) / income : 0;
+    return {
+      label, units,
+      stock: pts[pts.length - 1].stock,
+      averageTicketCents: units > 0 ? income / units : 0,
+      marginPercentage: Math.round(wMargin * 10) / 10,
+      adSpendPercentage: Math.round(wAds * 10) / 10,
+      date: pts[pts.length - 1].date,
+    };
+  });
+}
+function avg(a: number[]) { return a.length ? a.reduce((x, y) => x + y, 0) / a.length : 0; }
+
+/** Impacto en unidades (semanal): prom 4 semanas después vs 4 antes de la palanca, desde la serie diaria. */
+function impactoUnidades(fechaInicio: string, daily: SeriePoint[]): number | null {
+  const withDate = daily.filter(p => p.date);
+  if (!withDate.length) return null;
+  const p = new Date(fechaInicio).getTime();
+  const before = withDate.filter(s => { const t = new Date(s.date!).getTime(); return t >= p - 28 * 86400000 && t < p; });
+  const after  = withDate.filter(s => { const t = new Date(s.date!).getTime(); return t >= p && t < p + 28 * 86400000; });
   if (!before.length || !after.length) return null;
-  const avg = (a: number[]) => a.reduce((x, y) => x + y, 0) / a.length;
-  return Math.round(avg(after) - avg(before));
+  const wk = (arr: SeriePoint[]) => (arr.reduce((s, x) => s + x.units, 0) / 28) * 7;
+  return Math.round(wk(after) - wk(before));
 }
 
 /* ─── Gráfico de desempeño con tooltip ───────────────────────────────────── */
-function Desempeno({ series, active }: { series: SerieWeek[]; active: Set<string> }) {
+function Desempeno({ series, active }: { series: SeriePoint[]; active: Set<string> }) {
   const [hover, setHover] = useState<number | null>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
-  if (!series.length) return <div className="h-48 flex items-center justify-center text-slate-400 text-sm">Sin datos de desempeño</div>;
+  if (!series.length) return <div className="h-48 flex items-center justify-center text-slate-400 text-sm">Sin datos en el período</div>;
 
   const W = 900, H = 260, PAD_L = 8, PAD_R = 8, PAD_T = 16, PAD_B = 26;
   const n = series.length;
@@ -71,36 +100,25 @@ function Desempeno({ series, active }: { series: SerieWeek[]; active: Set<string
   const maxOf = (m: typeof METRICS[number]) => Math.max(1, ...series.map(m.get));
   const lineFor = (m: typeof METRICS[number]) => {
     const max = maxOf(m);
-    return series.map((s, i) => {
-      const y = H - PAD_B - (m.get(s) / max) * (H - PAD_T - PAD_B);
-      return `${i === 0 ? "M" : "L"}${x(i).toFixed(1)},${y.toFixed(1)}`;
-    }).join(" ");
+    return series.map((s, i) => `${i === 0 ? "M" : "L"}${x(i).toFixed(1)},${(H - PAD_B - (m.get(s) / max) * (H - PAD_T - PAD_B)).toFixed(1)}`).join(" ");
   };
-
   const onMove = (e: React.MouseEvent) => {
     const el = wrapRef.current; if (!el) return;
     const rect = el.getBoundingClientRect();
     const frac = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width));
     setHover(Math.round(frac * (n - 1)));
   };
-
-  const hx = hover != null ? (x(hover) / W) * 100 : 0;
-  const tipLeft = hover != null ? Math.min(82, Math.max(2, hx)) : 0;
+  const tipLeft = hover != null ? Math.min(82, Math.max(2, (x(hover) / W) * 100)) : 0;
 
   return (
     <div ref={wrapRef} className="relative" onMouseMove={onMove} onMouseLeave={() => setHover(null)}>
       <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ fontFamily: "monospace", fontSize: 10 }}>
         <rect x={PAD_L} y={PAD_T} width={W - PAD_L - PAD_R} height={H - PAD_T - PAD_B} fill="rgba(15,23,42,0.03)" rx="4" />
-        {METRICS.filter(m => active.has(m.key)).map(m => (
-          <path key={m.key} d={lineFor(m)} fill="none" stroke={m.color} strokeWidth="1.6" opacity="0.95" />
-        ))}
+        {METRICS.filter(m => active.has(m.key)).map(m => <path key={m.key} d={lineFor(m)} fill="none" stroke={m.color} strokeWidth="1.6" opacity="0.95" />)}
         {hover != null && (
           <>
             <line x1={x(hover)} x2={x(hover)} y1={PAD_T} y2={H - PAD_B} stroke="rgba(15,23,42,0.2)" strokeWidth="1" />
-            {METRICS.filter(m => active.has(m.key)).map(m => {
-              const cy = H - PAD_B - (m.get(series[hover]) / maxOf(m)) * (H - PAD_T - PAD_B);
-              return <circle key={m.key} cx={x(hover)} cy={cy} r="3" fill={m.color} />;
-            })}
+            {METRICS.filter(m => active.has(m.key)).map(m => <circle key={m.key} cx={x(hover)} cy={H - PAD_B - (m.get(series[hover]) / maxOf(m)) * (H - PAD_T - PAD_B)} r="3" fill={m.color} />)}
           </>
         )}
         {series.map((s, i) => i % Math.ceil(n / 13) === 0 && (
@@ -108,14 +126,11 @@ function Desempeno({ series, active }: { series: SerieWeek[]; active: Set<string
         ))}
       </svg>
       {hover != null && (
-        <div className="absolute top-2 pointer-events-none rounded-lg border border-slate-200 bg-white px-3 py-2 text-[11px] shadow-xl"
-          style={{ left: `${tipLeft}%` }}>
+        <div className="absolute top-2 pointer-events-none rounded-lg border border-slate-200 bg-white px-3 py-2 text-[11px] shadow-xl" style={{ left: `${tipLeft}%` }}>
           <p className="text-slate-700 font-semibold mb-1">{series[hover].label}</p>
           {METRICS.map(m => (
             <div key={m.key} className="flex items-center justify-between gap-4">
-              <span className="flex items-center gap-1.5 text-slate-500">
-                <span className="inline-block w-2 h-2 rounded-full" style={{ background: m.color }} />{m.label}
-              </span>
+              <span className="flex items-center gap-1.5 text-slate-500"><span className="inline-block w-2 h-2 rounded-full" style={{ background: m.color }} />{m.label}</span>
               <span className="font-mono text-slate-800">{m.fmt(m.get(series[hover]))}</span>
             </div>
           ))}
@@ -125,7 +140,7 @@ function Desempeno({ series, active }: { series: SerieWeek[]; active: Set<string
   );
 }
 
-/* ─── Form palanca (con comentario) ──────────────────────────────────────── */
+/* ─── Form palanca ───────────────────────────────────────────────────────── */
 function AddPalancaForm({ sku, onAdded }: { sku: string; onAdded: () => void }) {
   const [tipo, setTipo] = useState(PALANCA_OPTIONS[0]);
   const [fecha, setFecha] = useState(() => new Date().toISOString().slice(0, 10));
@@ -134,8 +149,7 @@ function AddPalancaForm({ sku, onAdded }: { sku: string; onAdded: () => void }) 
   async function submit(e: React.FormEvent) {
     e.preventDefault(); setLoading(true);
     try {
-      await fetch(`/api/sku/${sku}/palanca-log`, { method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ tipoPalanca: tipo, fechaInicio: fecha, comentario: comment || undefined }) });
+      await fetch(`/api/sku/${sku}/palanca-log`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ tipoPalanca: tipo, fechaInicio: fecha, comentario: comment || undefined }) });
       setComment(""); onAdded();
     } finally { setLoading(false); }
   }
@@ -156,19 +170,17 @@ function AddPalancaForm({ sku, onAdded }: { sku: string; onAdded: () => void }) 
   );
 }
 
-/* ─── Fila de palanca (con editar/eliminar + impacto) ────────────────────── */
+/* ─── Fila de palanca ────────────────────────────────────────────────────── */
 function PalancaRow({ sku, log, impacto, onChange }: { sku: string; log: PalancaLog; impacto: number | null; onChange: () => void }) {
   const [editing, setEditing] = useState(false);
   const [tipo, setTipo] = useState(log.tipoPalanca);
   const [fecha, setFecha] = useState(log.fechaInicio.slice(0, 10));
   const [comment, setComment] = useState(log.comentario ?? "");
   const [busy, setBusy] = useState(false);
-
   const save = async () => {
     setBusy(true);
     try {
-      await fetch(`/api/sku/${sku}/palanca-log`, { method: "PATCH", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: log.id, tipoPalanca: tipo, fechaInicio: fecha, comentario: comment }) });
+      await fetch(`/api/sku/${sku}/palanca-log`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: log.id, tipoPalanca: tipo, fechaInicio: fecha, comentario: comment }) });
       setEditing(false); onChange();
     } finally { setBusy(false); }
   };
@@ -178,7 +190,6 @@ function PalancaRow({ sku, log, impacto, onChange }: { sku: string; log: Palanca
     try { await fetch(`/api/sku/${sku}/palanca-log?id=${log.id}`, { method: "DELETE" }); onChange(); }
     finally { setBusy(false); }
   };
-
   if (editing) {
     return (
       <div className="bg-slate-50 rounded-lg px-3 py-2 border border-blue-200 space-y-2">
@@ -188,8 +199,7 @@ function PalancaRow({ sku, log, impacto, onChange }: { sku: string; log: Palanca
           </select>
           <input type="date" value={fecha} onChange={e => setFecha(e.target.value)} className="bg-white border border-slate-200 rounded px-2 py-1 text-xs text-slate-800" />
         </div>
-        <input type="text" value={comment} onChange={e => setComment(e.target.value)} placeholder="Comentario"
-          className="w-full bg-white border border-slate-200 rounded px-2 py-1 text-xs text-slate-800 placeholder-slate-400" />
+        <input type="text" value={comment} onChange={e => setComment(e.target.value)} placeholder="Comentario" className="w-full bg-white border border-slate-200 rounded px-2 py-1 text-xs text-slate-800 placeholder-slate-400" />
         <div className="flex gap-2">
           <button onClick={save} disabled={busy} className="bg-blue-600 hover:bg-blue-500 text-white text-xs px-3 py-1 rounded">{busy ? "…" : "Guardar"}</button>
           <button onClick={() => setEditing(false)} className="text-slate-400 hover:text-slate-700 text-xs px-2">Cancelar</button>
@@ -197,7 +207,6 @@ function PalancaRow({ sku, log, impacto, onChange }: { sku: string; log: Palanca
       </div>
     );
   }
-
   return (
     <div className="group flex items-start gap-3 bg-slate-50 rounded-lg px-3 py-2 border border-slate-200">
       <span className="w-1.5 h-1.5 rounded-full bg-blue-500 mt-1.5 shrink-0" />
@@ -209,7 +218,6 @@ function PalancaRow({ sku, log, impacto, onChange }: { sku: string; log: Palanca
         </div>
         {log.comentario && <p className="text-slate-500 text-xs mt-0.5">{log.comentario}</p>}
       </div>
-      {/* Impacto en unidades */}
       {impacto != null && (
         <span className={`text-xs font-mono whitespace-nowrap ${impacto > 0 ? "text-emerald-600" : impacto < 0 ? "text-red-600" : "text-slate-400"}`}>
           {impacto > 0 ? `▲ aumentó en ${impacto} uds` : impacto < 0 ? `▼ bajó en ${Math.abs(impacto)} uds` : "= sin cambio"}
@@ -238,6 +246,8 @@ export default function SkuDetailModal({ sku, onClose }: { sku: string; onClose:
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [active, setActive] = useState<Set<string>>(new Set(["stock", "units"]));
+  const [gran, setGran] = useState<Gran>("semana");
+  const [periodo, setPeriodo] = useState<Periodo>("anio");
 
   const load = useCallback(async () => {
     setLoading(true); setError(null);
@@ -256,12 +266,33 @@ export default function SkuDetailModal({ sku, onClose }: { sku: string; onClose:
 
   const toggle = (k: string) => setActive(prev => { const s = new Set(prev); s.has(k) ? s.delete(k) : s.add(k); return s; });
   const d = data?.detalle ?? null;
+  const dailyAll = d?.series ?? [];
+  const hasDates = dailyAll.some(p => p.date);
 
-  // Días desde que llegó el stock — SOLO para productos nuevos (con fecha de llegada manual).
+  // Filtrar por período (si hay fechas)
+  const daily = (() => {
+    if (!hasDates || periodo === "anio") return dailyAll;
+    const days = Number(periodo);
+    const cutoff = Date.now() - days * 86400000;
+    return dailyAll.filter(p => p.date && new Date(p.date).getTime() >= cutoff);
+  })();
+  const displayed = hasDates ? agregar(daily, gran) : dailyAll;
+
+  // KPIs recalculados según el período seleccionado
+  const kpis = (() => {
+    if (!daily.length) return d ? { units: d.totalUnits, ticket: d.averageIncomeCents, margin: d.marginPercentage, ads: d.adSpendPercentage, pub: 0 } : null;
+    const units = daily.reduce((s, p) => s + p.units, 0);
+    const income = daily.reduce((s, p) => s + p.units * p.averageTicketCents, 0);
+    const margin = income > 0 ? daily.reduce((s, p) => s + p.marginPercentage * p.units * p.averageTicketCents, 0) / income : avg(daily.map(p => p.marginPercentage));
+    const ads = income > 0 ? daily.reduce((s, p) => s + p.adSpendPercentage * p.units * p.averageTicketCents, 0) / income : 0;
+    const pub = daily.reduce((s, p) => s + (p.adSpendPercentage / 100) * p.units * p.averageTicketCents, 0);
+    return { units, ticket: units > 0 ? income / units : 0, margin, ads, pub };
+  })();
+
   const fechaLlegada = FECHAS_LLEGADA_NUEVOS[sku] ?? null;
-  const diasDesdeLlegada = fechaLlegada
-    ? Math.max(0, Math.floor((Date.now() - new Date(fechaLlegada).getTime()) / 86400000))
-    : null;
+  const diasDesdeLlegada = fechaLlegada ? Math.max(0, Math.floor((Date.now() - new Date(fechaLlegada).getTime()) / 86400000)) : null;
+
+  const segBtn = (activeSel: boolean) => `text-[11px] px-2.5 py-1 rounded-md transition-colors ${activeSel ? "bg-white shadow-sm text-slate-800 border border-slate-200" : "text-slate-500 hover:text-slate-700"}`;
 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center bg-slate-900/40 backdrop-blur-sm overflow-y-auto py-8 px-4"
@@ -285,16 +316,34 @@ export default function SkuDetailModal({ sku, onClose }: { sku: string; onClose:
         {!loading && !error && data && (
           <div className="p-6 space-y-6">
             <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-              <Kpi label="Ventas Totales"  value={d ? d.totalUnits.toLocaleString("es-CL") : "—"} />
-              <Kpi label="Ticket Promedio" value={d ? fmtCLP(d.averageIncomeCents) : "—"} />
-              <Kpi label="Margen"          value={`${(d ? d.marginPercentage : data.product.margenPct).toFixed(1)}%`} />
-              <Kpi label="Publicidad %"    value={d ? `${d.adSpendPercentage.toFixed(1)}%` : "—"} />
-              <Kpi label="Publicidad $"    value={d ? fmtCLP(d.series.reduce((s, w) => s + (w.adSpendPercentage / 100) * w.units * w.averageTicketCents, 0)) : "—"} />
+              <Kpi label="Ventas Totales"  value={kpis ? Math.round(kpis.units).toLocaleString("es-CL") : "—"} />
+              <Kpi label="Ticket Promedio" value={kpis ? fmtCLP(kpis.ticket) : "—"} />
+              <Kpi label="Margen"          value={`${(kpis ? kpis.margin : data.product.margenPct).toFixed(1)}%`} />
+              <Kpi label="Publicidad %"    value={kpis ? `${kpis.ads.toFixed(1)}%` : "—"} />
+              <Kpi label="Publicidad $"    value={kpis ? fmtCLP(kpis.pub) : "—"} />
             </div>
 
             <div>
               <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
-                <p className="text-slate-500 text-xs font-semibold uppercase tracking-wider">Desempeño</p>
+                <div className="flex items-center gap-3 flex-wrap">
+                  <p className="text-slate-500 text-xs font-semibold uppercase tracking-wider">Desempeño</p>
+                  {hasDates && (
+                    <>
+                      {/* Granularidad */}
+                      <div className="flex items-center gap-0.5 bg-slate-100 rounded-lg p-0.5">
+                        {([["dia", "Día"], ["semana", "Semana"], ["mes", "Mes"]] as [Gran, string][]).map(([g, lbl]) => (
+                          <button key={g} onClick={() => setGran(g)} className={segBtn(gran === g)}>{lbl}</button>
+                        ))}
+                      </div>
+                      {/* Período */}
+                      <div className="flex items-center gap-0.5 bg-slate-100 rounded-lg p-0.5">
+                        {([["anio", "Este año"], ["90", "90 días"], ["30", "30 días"], ["14", "14 días"]] as [Periodo, string][]).map(([p, lbl]) => (
+                          <button key={p} onClick={() => setPeriodo(p)} className={segBtn(periodo === p)}>{lbl}</button>
+                        ))}
+                      </div>
+                    </>
+                  )}
+                </div>
                 <div className="flex flex-wrap gap-1.5">
                   {METRICS.map(m => (
                     <button key={m.key} onClick={() => toggle(m.key)}
@@ -306,7 +355,7 @@ export default function SkuDetailModal({ sku, onClose }: { sku: string; onClose:
                 </div>
               </div>
               {d
-                ? <Desempeno series={d.series} active={active} />
+                ? <Desempeno series={displayed} active={active} />
                 : <div className="h-32 flex items-center justify-center text-slate-400 text-xs text-center px-4">
                     Sin detalle de desempeño aún. Corre el sync de velocidades (Datos / Sync).
                   </div>}
@@ -318,11 +367,7 @@ export default function SkuDetailModal({ sku, onClose }: { sku: string; onClose:
                 <div className="space-y-1.5 max-h-52 overflow-y-auto pr-1">
                   {[...data.palancaLogs]
                     .sort((a, b) => new Date(b.fechaInicio).getTime() - new Date(a.fechaInicio).getTime())
-                    .map(l => (
-                      <PalancaRow key={l.id} sku={sku} log={l}
-                        impacto={d ? impactoUnidades(l.fechaInicio, d.series) : null}
-                        onChange={load} />
-                    ))}
+                    .map(l => <PalancaRow key={l.id} sku={sku} log={l} impacto={impactoUnidades(l.fechaInicio, dailyAll)} onChange={load} />)}
                 </div>
               )}
               <AddPalancaForm sku={sku} onAdded={load} />
