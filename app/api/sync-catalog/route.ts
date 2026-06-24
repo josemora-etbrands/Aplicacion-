@@ -28,7 +28,7 @@ async function runCatalogSync() {
     }
 
     // Solo productos ACTIVOS en ProfitGuard
-    const items: Array<{ sku: string; nombre: string }> = [];
+    const items: Array<{ sku: string; nombre: string; fecha: Date | null }> = [];
     let inactivos = 0;
     for (const pg of pgProducts) {
       const raw = extractSku(pg);
@@ -36,18 +36,19 @@ async function runCatalogSync() {
       const sku = sanitizeSku(raw);
       if (!sku) continue;
       if (pg.active === false) { inactivos++; continue; }
-      items.push({ sku, nombre: extractNombre(pg, sku) });
+      const fecha = pg.createdAt ? new Date(pg.createdAt) : null;
+      items.push({ sku, nombre: extractNombre(pg, sku), fecha: fecha && !isNaN(fecha.getTime()) ? fecha : null });
     }
     const activeSkus = items.map(i => i.sku);
 
     let updated = 0, created = 0, skipped = 0;
     const BATCH = 25;
-    const ops = items.map(({ sku, nombre }) => async () => {
+    const ops = items.map(({ sku, nombre, fecha }) => async () => {
       try {
         const r = await prisma.product.upsert({
           where:  { sku },
-          update: { nombre },
-          create: { sku, nombre, velocidadInicial: 1.2, velocidadMadura: 4.7 },
+          update: { nombre, ...(fecha ? { fechaLlegada: fecha } : {}) },
+          create: { sku, nombre, velocidadInicial: 1.2, velocidadMadura: 4.7, ...(fecha ? { fechaLlegada: fecha } : {}) },
           select: { createdAt: true, updatedAt: true },
         });
         return Math.abs(r.createdAt.getTime() - r.updatedAt.getTime()) < 1000 ? "c" : "u";

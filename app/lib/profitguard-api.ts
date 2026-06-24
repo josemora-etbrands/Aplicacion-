@@ -29,6 +29,8 @@ export interface PGProduct {
   type?:   string;
   // Estado en ProfitGuard
   active?: boolean;
+  // Fecha de creación en PG (proxy de cuándo llegó el stock)
+  createdAt?: string;
 }
 
 export interface PGSyncResult {

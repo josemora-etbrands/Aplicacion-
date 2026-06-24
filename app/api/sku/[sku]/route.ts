@@ -33,6 +33,7 @@ export async function GET(
       acos:             product.acos,
       categoria:        product.categoria,
       velocidadPromedio: product.velocidadPromedio,
+      fechaLlegada:     product.fechaLlegada ? product.fechaLlegada.toISOString() : null,
     },
     // Bloque estilo ProfitGuard (KPIs + serie semanal) para el modal de detalle.
     detalle: (product.velocidadData as { detalle?: unknown } | null)?.detalle ?? null,

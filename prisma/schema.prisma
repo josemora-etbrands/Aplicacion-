@@ -60,6 +60,9 @@ model Product {
   // Marca manual "Listo" (revisado) que sobreescribe el estado del semáforo en la UI.
   listo            Boolean     @default(false)
 
+  // Fecha en que el producto entró a ProfitGuard (proxy de "cuándo llegó el stock").
+  fechaLlegada     DateTime?
+
   createdAt        DateTime      @default(now())
   updatedAt        DateTime      @updatedAt
   actionLogs       ActionLog[]

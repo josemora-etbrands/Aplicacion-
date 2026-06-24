@@ -7,6 +7,7 @@ interface ProductDetail {
   sku: string; nombre: string; categoria?: string | null;
   margenPct: number; stock: number; publicidad: number; ingresos: number; ventas: number; acos: number;
   velocidadPromedio?: number | null;
+  fechaLlegada?: string | null;
 }
 interface SerieWeek {
   label: string; units: number; stock: number;
@@ -255,10 +256,10 @@ export default function SkuDetailModal({ sku, onClose }: { sku: string; onClose:
   const toggle = (k: string) => setActive(prev => { const s = new Set(prev); s.has(k) ? s.delete(k) : s.add(k); return s; });
   const d = data?.detalle ?? null;
 
-  // Días de rotación = stock / venta diaria (solo si hay stock y velocidad promedio > 0).
-  const prom = data?.product.velocidadPromedio ?? 0;
-  const stk  = data?.product.stock ?? 0;
-  const diasRotacion = prom > 0 && stk > 0 ? Math.round((stk * 7) / prom) : null;
+  // Días desde que llegó el stock (antigüedad), solo si la app tiene la fecha.
+  const diasDesdeLlegada = data?.product.fechaLlegada
+    ? Math.max(0, Math.floor((Date.now() - new Date(data.product.fechaLlegada).getTime()) / 86400000))
+    : null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center bg-slate-900/40 backdrop-blur-sm overflow-y-auto py-8 px-4"
@@ -269,7 +270,7 @@ export default function SkuDetailModal({ sku, onClose }: { sku: string; onClose:
             <p className="text-slate-400 text-xs font-mono mb-0.5">
               {sku}
               {data?.product.categoria ? ` · Cat ${data.product.categoria}` : ""}
-              {diasRotacion != null && <span className="text-blue-600"> · Rotación {diasRotacion} días</span>}
+              {diasDesdeLlegada != null && <span className="text-blue-600"> · {diasDesdeLlegada} días desde que llegó</span>}
             </p>
             <h2 className="text-slate-900 text-base font-semibold leading-snug">{data?.product.nombre ?? "Cargando…"}</h2>
           </div>
