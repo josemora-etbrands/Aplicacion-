@@ -20,6 +20,7 @@ const STATEMENTS = [
   `ALTER TABLE "products" ADD COLUMN IF NOT EXISTS "listo" BOOLEAN NOT NULL DEFAULT false`,
   `ALTER TABLE "products" ADD COLUMN IF NOT EXISTS "fechaLlegada" TIMESTAMPTZ`,
   `ALTER TABLE "palanca_logs" ADD COLUMN IF NOT EXISTS "implementado" BOOLEAN NOT NULL DEFAULT false`,
+  `ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "password" TEXT`,
 ];
 
 export async function POST(req: NextRequest) {

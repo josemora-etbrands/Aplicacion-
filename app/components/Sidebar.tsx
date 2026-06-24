@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import Logo from "./Logo";
 
 const nav = [
@@ -11,6 +11,12 @@ const nav = [
 
 export default function Sidebar() {
   const pathname = usePathname();
+  const router = useRouter();
+  const logout = async () => {
+    await fetch("/api/auth/logout", { method: "POST" });
+    router.push("/login");
+    router.refresh();
+  };
   return (
     <aside className="flex flex-col w-60 min-h-screen bg-white border-r border-slate-200">
       {/* Logo */}
@@ -36,11 +42,15 @@ export default function Sidebar() {
       </nav>
 
       {/* Footer */}
-      <div className="px-6 py-4 border-t border-slate-100">
-        <div className="flex items-center gap-2">
+      <div className="px-3 py-4 border-t border-slate-100 space-y-1">
+        <div className="flex items-center gap-2 px-3 py-1">
           <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
           <span className="text-xs text-slate-400">Agente IA activo</span>
         </div>
+        <button onClick={logout}
+          className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium text-slate-500 hover:text-red-600 hover:bg-red-50 transition-colors">
+          <span className="text-base">⎋</span> Cerrar sesión
+        </button>
       </div>
     </aside>
   );
