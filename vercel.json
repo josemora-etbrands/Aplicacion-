@@ -1,9 +1,3 @@
 {
-  "installCommand": "npm install && npx prisma generate",
-  "crons": [
-    {
-      "path": "/api/cron/sync",
-      "schedule": "0 9 * * *"
-    }
-  ]
+  "installCommand": "npm install && npx prisma generate"
 }
