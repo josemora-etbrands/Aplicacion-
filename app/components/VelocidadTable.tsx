@@ -236,7 +236,7 @@ export default function VelocidadTable({ rows }: { rows: VelocidadRow[] }) {
                 <tr key={r.sku} className={`border-b border-slate-100 last:border-0 transition-colors ${listoSet.has(r.sku) ? "bg-emerald-50/60 hover:bg-emerald-100/60" : "hover:bg-slate-50"}`}>
                   <td className="px-3 py-2.5 max-w-[280px]">
                     <button onClick={() => setSelectedSku(r.sku)}
-                      className="font-mono text-blue-600 hover:text-blue-700 hover:underline underline-offset-2 cursor-pointer">
+                      className="font-mono text-orange-600 hover:text-orange-700 hover:underline underline-offset-2 cursor-pointer">
                       {r.sku}
                     </button>
                     {r.asociaciones > 1 && <span className="text-slate-400 ml-1">({r.asociaciones} productos)</span>}
