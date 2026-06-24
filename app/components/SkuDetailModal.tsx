@@ -6,6 +6,7 @@ interface PalancaLog { id: string; tipoPalanca: string; fechaInicio: string; com
 interface ProductDetail {
   sku: string; nombre: string; categoria?: string | null;
   margenPct: number; stock: number; publicidad: number; ingresos: number; ventas: number; acos: number;
+  velocidadPromedio?: number | null;
 }
 interface SerieWeek {
   label: string; units: number; stock: number;
@@ -254,13 +255,22 @@ export default function SkuDetailModal({ sku, onClose }: { sku: string; onClose:
   const toggle = (k: string) => setActive(prev => { const s = new Set(prev); s.has(k) ? s.delete(k) : s.add(k); return s; });
   const d = data?.detalle ?? null;
 
+  // Días de rotación = stock / venta diaria (solo si hay stock y velocidad promedio > 0).
+  const prom = data?.product.velocidadPromedio ?? 0;
+  const stk  = data?.product.stock ?? 0;
+  const diasRotacion = prom > 0 && stk > 0 ? Math.round((stk * 7) / prom) : null;
+
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center bg-slate-900/40 backdrop-blur-sm overflow-y-auto py-8 px-4"
       onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
       <div className="w-full max-w-4xl bg-white border border-slate-200 rounded-2xl shadow-2xl overflow-hidden">
         <div className="flex items-start justify-between px-6 py-4 border-b border-slate-100">
           <div>
-            <p className="text-slate-400 text-xs font-mono mb-0.5">{sku}{data?.product.categoria ? ` · Cat ${data.product.categoria}` : ""}</p>
+            <p className="text-slate-400 text-xs font-mono mb-0.5">
+              {sku}
+              {data?.product.categoria ? ` · Cat ${data.product.categoria}` : ""}
+              {diasRotacion != null && <span className="text-blue-600"> · Rotación {diasRotacion} días</span>}
+            </p>
             <h2 className="text-slate-900 text-base font-semibold leading-snug">{data?.product.nombre ?? "Cargando…"}</h2>
           </div>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-700 text-lg leading-none ml-2">✕</button>
