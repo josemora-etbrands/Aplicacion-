@@ -1,9 +1,10 @@
 "use client";
 import { useEffect, useState, useCallback, useRef } from "react";
 import { FECHAS_LLEGADA_NUEVOS } from "@/app/lib/productosNuevos";
+import { useStoreVersion, getPalancas, addPalanca, updatePalanca, deletePalanca, type Palanca } from "@/app/lib/store";
 
 /* ─── Tipos ──────────────────────────────────────────────────────────────── */
-interface PalancaLog { id: string; tipoPalanca: string; fechaInicio: string; comentario: string | null; implementado?: boolean; createdAt: string; }
+type PalancaLog = Palanca;
 interface ProductDetail {
   sku: string; nombre: string; categoria?: string | null;
   margenPct: number; stock: number; publicidad: number; ingresos: number; ventas: number; acos: number;
@@ -141,17 +142,14 @@ function Desempeno({ series, active }: { series: SeriePoint[]; active: Set<strin
 }
 
 /* ─── Form palanca ───────────────────────────────────────────────────────── */
-function AddPalancaForm({ sku, onAdded }: { sku: string; onAdded: () => void }) {
+function AddPalancaForm({ sku, nombre }: { sku: string; nombre: string }) {
   const [tipo, setTipo] = useState(PALANCA_OPTIONS[0]);
   const [fecha, setFecha] = useState(() => new Date().toISOString().slice(0, 10));
   const [comment, setComment] = useState("");
-  const [loading, setLoading] = useState(false);
-  async function submit(e: React.FormEvent) {
-    e.preventDefault(); setLoading(true);
-    try {
-      await fetch(`/api/sku/${sku}/palanca-log`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ tipoPalanca: tipo, fechaInicio: fecha, comentario: comment || undefined }) });
-      setComment(""); onAdded();
-    } finally { setLoading(false); }
+  function submit(e: React.FormEvent) {
+    e.preventDefault();
+    addPalanca({ sku, nombre, tipoPalanca: tipo, fechaInicio: fecha, comentario: comment || null, implementado: false });
+    setComment("");
   }
   return (
     <form onSubmit={submit} className="space-y-2">
@@ -163,40 +161,22 @@ function AddPalancaForm({ sku, onAdded }: { sku: string; onAdded: () => void }) 
       </div>
       <input type="text" value={comment} onChange={e => setComment(e.target.value)} placeholder="Comentario (opcional) — ej: subimos presupuesto a $15k/día"
         className="w-full bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-xs text-slate-800 placeholder-slate-400" />
-      <button type="submit" disabled={loading} className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-xs font-medium px-4 py-1.5 rounded-lg">
-        {loading ? "Guardando…" : "Registrar palanca"}
+      <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium px-4 py-1.5 rounded-lg">
+        Registrar palanca
       </button>
     </form>
   );
 }
 
 /* ─── Fila de palanca ────────────────────────────────────────────────────── */
-function PalancaRow({ sku, log, impacto, onChange }: { sku: string; log: PalancaLog; impacto: number | null; onChange: () => void }) {
+function PalancaRow({ log, impacto }: { log: PalancaLog; impacto: number | null }) {
   const [editing, setEditing] = useState(false);
   const [tipo, setTipo] = useState(log.tipoPalanca);
   const [fecha, setFecha] = useState(log.fechaInicio.slice(0, 10));
   const [comment, setComment] = useState(log.comentario ?? "");
-  const [busy, setBusy] = useState(false);
-  const save = async () => {
-    setBusy(true);
-    try {
-      await fetch(`/api/sku/${sku}/palanca-log`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: log.id, tipoPalanca: tipo, fechaInicio: fecha, comentario: comment }) });
-      setEditing(false); onChange();
-    } finally { setBusy(false); }
-  };
-  const del = async () => {
-    if (!confirm("¿Eliminar esta palanca?")) return;
-    setBusy(true);
-    try { await fetch(`/api/sku/${sku}/palanca-log?id=${log.id}`, { method: "DELETE" }); onChange(); }
-    finally { setBusy(false); }
-  };
-  const toggleImpl = async () => {
-    setBusy(true);
-    try {
-      await fetch(`/api/sku/${sku}/palanca-log`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: log.id, implementado: !log.implementado }) });
-      onChange();
-    } finally { setBusy(false); }
-  };
+  const save = () => { updatePalanca(log.id, { tipoPalanca: tipo, fechaInicio: fecha, comentario: comment || null }); setEditing(false); };
+  const del = () => { if (confirm("¿Eliminar esta palanca?")) deletePalanca(log.id); };
+  const toggleImpl = () => updatePalanca(log.id, { implementado: !log.implementado });
   if (editing) {
     return (
       <div className="bg-slate-50 rounded-lg px-3 py-2 border border-blue-200 space-y-2">
@@ -208,7 +188,7 @@ function PalancaRow({ sku, log, impacto, onChange }: { sku: string; log: Palanca
         </div>
         <input type="text" value={comment} onChange={e => setComment(e.target.value)} placeholder="Comentario" className="w-full bg-white border border-slate-200 rounded px-2 py-1 text-xs text-slate-800 placeholder-slate-400" />
         <div className="flex gap-2">
-          <button onClick={save} disabled={busy} className="bg-blue-600 hover:bg-blue-500 text-white text-xs px-3 py-1 rounded">{busy ? "…" : "Guardar"}</button>
+          <button onClick={save} className="bg-blue-600 hover:bg-blue-500 text-white text-xs px-3 py-1 rounded">Guardar</button>
           <button onClick={() => setEditing(false)} className="text-slate-400 hover:text-slate-700 text-xs px-2">Cancelar</button>
         </div>
       </div>
@@ -232,11 +212,11 @@ function PalancaRow({ sku, log, impacto, onChange }: { sku: string; log: Palanca
       )}
       {log.implementado && <span className="border px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700 border-emerald-300 shrink-0">Implementado</span>}
       <div className="flex items-center gap-1.5 shrink-0">
-        <button onClick={toggleImpl} disabled={busy} title={log.implementado ? "Marcar pendiente" : "Marcar implementado"}
+        <button onClick={toggleImpl} title={log.implementado ? "Marcar pendiente" : "Marcar implementado"}
           className={`w-5 h-5 rounded-full border flex items-center justify-center text-[11px] leading-none ${log.implementado ? "bg-emerald-500 text-white border-emerald-500" : "border-slate-300 text-slate-300 hover:text-emerald-600 hover:border-emerald-400"}`}>✓</button>
         <span className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
           <button onClick={() => setEditing(true)} className="text-slate-400 hover:text-blue-600 text-xs" title="Editar">✎</button>
-          <button onClick={del} disabled={busy} className="text-slate-400 hover:text-red-500 text-xs" title="Eliminar">✕</button>
+          <button onClick={del} className="text-slate-400 hover:text-red-500 text-xs" title="Eliminar">✕</button>
         </span>
       </div>
     </div>
@@ -275,6 +255,9 @@ export default function SkuDetailModal({ sku, onClose }: { sku: string; onClose:
     const h = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
     window.addEventListener("keydown", h); return () => window.removeEventListener("keydown", h);
   }, [onClose]);
+
+  const ver = useStoreVersion();
+  const palancas = (() => { void ver; return getPalancas().filter(p => p.sku === sku).sort((a, b) => new Date(b.fechaInicio).getTime() - new Date(a.fechaInicio).getTime()); })();
 
   const toggle = (k: string) => setActive(prev => { const s = new Set(prev); s.has(k) ? s.delete(k) : s.add(k); return s; });
   const d = data?.detalle ?? null;
@@ -374,15 +357,13 @@ export default function SkuDetailModal({ sku, onClose }: { sku: string; onClose:
             </div>
 
             <div className="border-t border-slate-100 pt-4 space-y-3">
-              <p className="text-slate-400 text-[10px] uppercase tracking-wider">Palancas · {data.palancaLogs.length} registradas</p>
-              {data.palancaLogs.length > 0 && (
+              <p className="text-slate-400 text-[10px] uppercase tracking-wider">Palancas · {palancas.length} registradas</p>
+              {palancas.length > 0 && (
                 <div className="space-y-1.5 max-h-52 overflow-y-auto pr-1">
-                  {[...data.palancaLogs]
-                    .sort((a, b) => new Date(b.fechaInicio).getTime() - new Date(a.fechaInicio).getTime())
-                    .map(l => <PalancaRow key={l.id} sku={sku} log={l} impacto={impactoUnidades(l.fechaInicio, dailyAll)} onChange={load} />)}
+                  {palancas.map(l => <PalancaRow key={l.id} log={l} impacto={impactoUnidades(l.fechaInicio, dailyAll)} />)}
                 </div>
               )}
-              <AddPalancaForm sku={sku} onAdded={load} />
+              <AddPalancaForm sku={sku} nombre={data.product.nombre} />
             </div>
           </div>
         )}

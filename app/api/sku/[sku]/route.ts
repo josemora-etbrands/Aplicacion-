@@ -1,52 +1,25 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { PRODUCTOS_DEMO } from "@/app/lib/demoData";
 
-export async function GET(
-  _req: Request,
-  { params }: { params: Promise<{ sku: string }> },
-) {
+export const dynamic = "force-static";
+
+export async function GET(_req: Request, { params }: { params: Promise<{ sku: string }> }) {
   const { sku } = await params;
+  const p = PRODUCTOS_DEMO.find(x => x.sku === sku);
+  if (!p) return NextResponse.json({ error: "Producto no encontrado" }, { status: 404 });
 
-  const product = await prisma.product.findUnique({
-    where: { sku },
-    include: {
-      weeklySales: { orderBy: [{ year: "asc" }, { week: "asc" }] },
-      palancaLogs: { orderBy: { fechaInicio: "asc" } },
-    },
-  });
-
-  if (!product) {
-    return NextResponse.json({ error: "Producto no encontrado" }, { status: 404 });
-  }
-
+  const d = (p.velocidadData ?? {}) as { detalle?: unknown };
   return NextResponse.json({
     product: {
-      sku:              product.sku,
-      nombre:           product.nombre,
-      margenPct:        product.margenPct,
-      stock:            product.stock,
-      velocidadInicial: product.velocidadInicial,
-      velocidadMadura:  product.velocidadMadura,
-      publicidad:       product.publicidad,
-      ingresos:         product.ingresos,
-      ventas:           product.ventas,
-      acos:             product.acos,
-      categoria:        product.categoria,
-      velocidadPromedio: product.velocidadPromedio,
-      fechaLlegada:     product.fechaLlegada ? product.fechaLlegada.toISOString() : null,
+      sku: p.sku, nombre: p.nombre, categoria: p.categoria,
+      velocidadInicial: p.velocidadInicial, velocidadMadura: p.velocidadMadura,
+      velocidadPromedio: p.velocidadPromedio, stock: p.stock,
+      // campos heredados que el modal tolera ausentes/0
+      margenPct: 0, publicidad: 0, ingresos: 0, ventas: 0, acos: 0,
+      fechaLlegada: p.fechaLlegada,
     },
-    // Bloque estilo ProfitGuard (KPIs + serie semanal) para el modal de detalle.
-    detalle: (product.velocidadData as { detalle?: unknown } | null)?.detalle ?? null,
-    weeklySales: product.weeklySales.map(w => ({
-      year: w.year, week: w.week, value: w.value,
-    })),
-    palancaLogs: product.palancaLogs.map(l => ({
-      id:          l.id,
-      tipoPalanca: l.tipoPalanca,
-      fechaInicio: l.fechaInicio.toISOString(),
-      comentario:  l.comentario,
-      implementado: l.implementado,
-      createdAt:   l.createdAt.toISOString(),
-    })),
+    detalle: d.detalle ?? null,
+    // Las palancas viven en el navegador (store local) en modo demo.
+    palancaLogs: [],
   });
 }

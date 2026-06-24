@@ -1,4 +1,4 @@
-import { prisma } from "@/lib/prisma";
+import { PRODUCTOS_DEMO } from "@/app/lib/demoData";
 import Sidebar from "@/app/components/Sidebar";
 import VelocidadTable, { type VelocidadRow } from "@/app/components/VelocidadTable";
 import { diagnosticar } from "@/app/lib/diagnostico";
@@ -45,66 +45,48 @@ function margenes(series?: SeriePt[]): { actual: number | null; cerrado: number 
   return { actual: weeks[0] ?? null, cerrado: weeks[1] ?? null };
 }
 
-async function getData(): Promise<{ rows: VelocidadRow[]; error: string | null }> {
-  try {
-    const products = await prisma.product.findMany({
-      where:  { velocidadData: { not: null } },
-      select: {
-        sku: true, nombre: true, stock: true, velocidadData: true,
-        velocidadInicial: true, velocidadMadura: true,
-        margenPct: true, acos: true, publicidad: true, ventas: true, ingresos: true,
-        esNuevo: true, ordenLlegada: true, listo: true,
-      },
-    });
+function getData(): { rows: VelocidadRow[]; error: string | null } {
+  const rows: VelocidadRow[] = PRODUCTOS_DEMO.filter(p => p.velocidadData).map(p => {
+    const d = (p.velocidadData ?? {}) as VData;
+    const weeks = (d.weeks ?? []).map(w => ({ number: w.number, year: w.year, units: w.units }));
+    const stockTotal = Number(d.stockTotal ?? p.stock ?? 0);
+    const velocidad  = Number(d.velocidad ?? 0);
 
-    const rows: VelocidadRow[] = products.map(p => {
-      const d = (p.velocidadData ?? {}) as VData;
-      const weeks = (d.weeks ?? []).map(w => ({ number: w.number, year: w.year, units: w.units }));
-      const stockTotal = Number(d.stockTotal ?? p.stock ?? 0);
-      const velocidad  = Number(d.velocidad ?? 0);
+    const ov = VELOCIDADES_NUEVOS[p.sku];
+    const maduraEff  = ov ? ov.madura : velocidad;
+    const inicialEff = ov ? ov.inicial : Math.round(velocidad / 4);
 
-      // Targets: manual si es producto nuevo seteado, si no derivado de la madura de PG.
-      const ov = VELOCIDADES_NUEVOS[p.sku];
-      const maduraEff  = ov ? ov.madura : velocidad;
-      const inicialEff = ov ? ov.inicial : Math.round(velocidad / 4);
-
-      // Semáforo: solo tiene sentido si hay meta de velocidad (>0).
-      let status: VelocidadRow["status"] = null;
-      let statusLabel = "";
-      let palancas: string[] = [];
-      if (maduraEff > 0) {
-        const dg = diagnosticar({
-          sku: p.sku, nombre: p.nombre,
-          weekHistory: weeks.map(w => ({ year: w.year, week: w.number, value: w.units })),
-          velocidadInicial: inicialEff, velocidadMadura: maduraEff,
-          margenPct: p.margenPct, acos: p.acos,
-          publicidad: p.publicidad, ventas: p.ventas, ingresos: p.ingresos,
-          stock: stockTotal,
-        });
-        status = dg.status;
-        statusLabel = dg.statusLabel;
-        palancas = dg.palancasSugeridas;
-      }
-
-      return {
+    let status: VelocidadRow["status"] = null;
+    let statusLabel = "";
+    let palancas: string[] = [];
+    if (maduraEff > 0) {
+      const dg = diagnosticar({
         sku: p.sku, nombre: p.nombre,
-        categoria: (d.categoria ?? "").toString().toUpperCase(),
-        velocidad, promedio: Number(d.promedio ?? 0), stockTotal,
-        asociaciones: Number(d.asociaciones ?? 0), weeks,
-        status, statusLabel, palancas,
-        esNuevo: p.esNuevo, ordenLlegada: p.ordenLlegada ?? null, listo: p.listo,
-        ...(() => { const mg = margenes(d.detalle?.series); return { margenActual: mg.actual, margenCerrado: mg.cerrado }; })(),
-      };
-    });
+        weekHistory: weeks.map(w => ({ year: w.year, week: w.number, value: w.units })),
+        velocidadInicial: inicialEff, velocidadMadura: maduraEff,
+        margenPct: 0, acos: 0, publicidad: 0, ventas: 0, ingresos: 0,
+        stock: stockTotal,
+      });
+      status = dg.status;
+      statusLabel = dg.statusLabel;
+      palancas = dg.palancasSugeridas;
+    }
 
-    return { rows, error: null };
-  } catch (e) {
-    return { rows: [], error: String(e) };
-  }
+    return {
+      sku: p.sku, nombre: p.nombre,
+      categoria: (d.categoria ?? "").toString().toUpperCase(),
+      velocidad, promedio: Number(d.promedio ?? 0), stockTotal,
+      asociaciones: Number(d.asociaciones ?? 0), weeks,
+      status, statusLabel, palancas,
+      esNuevo: p.esNuevo, ordenLlegada: p.ordenLlegada ?? null,
+      ...(() => { const mg = margenes(d.detalle?.series); return { margenActual: mg.actual, margenCerrado: mg.cerrado }; })(),
+    };
+  });
+  return { rows, error: null };
 }
 
-export default async function HomePage() {
-  const { rows, error } = await getData();
+export default function HomePage() {
+  const { rows, error } = getData();
 
   return (
     <div className="flex h-full min-h-screen bg-slate-50">

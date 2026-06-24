@@ -42,3 +42,8 @@ next-env.d.ts
 
 /generated
 /app/generated
+
+# data/exports
+Palancas_ET_Brands.xlsx
+*.xlsx
+palancas_export.json

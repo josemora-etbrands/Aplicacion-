@@ -1,8 +1,8 @@
 "use client";
 import { useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
 import SkuDetailModal from "./SkuDetailModal";
 import { VELOCIDADES_NUEVOS } from "@/app/lib/productosNuevos";
+import { useStoreVersion, getListo, toggleListo, getNuevosOverlay, addNuevo, removeNuevo } from "@/app/lib/store";
 
 /** Madura efectiva: target manual si es producto nuevo seteado, si no el de PG. */
 function maduraOf(r: { sku: string; velocidad: number }): number {
@@ -86,23 +86,15 @@ export default function VelocidadTable({ rows }: { rows: VelocidadRow[] }) {
   const [selectedSku, setSelectedSku] = useState<string | null>(null);
   const [filtro, setFiltro] = useState<"off" | "todos" | "pendientes">("off");
   const enNuevos = filtro !== "off";
-  const router = useRouter();
+
+  // Estado persistido en el navegador (store local, sin base de datos)
+  const ver = useStoreVersion(); // cambia al modificar el store → re-render
+  const listoSet = useMemo(() => new Set(getListo()), [ver]);
+  const overlay = useMemo(() => getNuevosOverlay(), [ver]);
+  const esNuevoEff = (r: VelocidadRow) => (!!r.esNuevo || overlay.add.includes(r.sku)) && !overlay.del.includes(r.sku);
 
   const hasStatus = rows.some(r => r.status);
-  const nuevosCount = useMemo(() => rows.filter(r => r.esNuevo).length, [rows]);
-
-  // Marca "Listo" — estado local optimista (sin recargar toda la tabla)
-  const [listoSet, setListoSet] = useState<Set<string>>(() => new Set(rows.filter(r => r.listo).map(r => r.sku)));
-  const toggleListo = async (sku: string) => {
-    const nuevo = !listoSet.has(sku);
-    setListoSet(prev => { const s = new Set(prev); nuevo ? s.add(sku) : s.delete(sku); return s; });
-    try {
-      await fetch("/api/marcar-listo", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sku, listo: nuevo }) });
-    } catch {
-      // revertir si falla
-      setListoSet(prev => { const s = new Set(prev); nuevo ? s.delete(sku) : s.add(sku); return s; });
-    }
-  };
+  const nuevosCount = rows.filter(esNuevoEff).length;
 
   // Columnas de semanas = unión de todas las semanas presentes, orden cronológico
   const weekCols = useMemo(() => {
@@ -128,7 +120,7 @@ export default function VelocidadTable({ rows }: { rows: VelocidadRow[] }) {
   const visible = useMemo(() => {
     const q = search.trim().toLowerCase();
     const filtered = rows.filter(r => {
-      if (enNuevos && !r.esNuevo) return false;
+      if (enNuevos && !esNuevoEff(r)) return false;
       if (filtro === "pendientes" && listoSet.has(r.sku)) return false;
       if (q && !r.sku.toLowerCase().includes(q) && !r.nombre.toLowerCase().includes(q)) return false;
       return true;
@@ -155,7 +147,7 @@ export default function VelocidadTable({ rows }: { rows: VelocidadRow[] }) {
         ? va - vb : String(va).localeCompare(String(vb));
       return sortDir === "asc" ? cmp : -cmp;
     });
-  }, [rows, search, sortKey, sortDir, filtro, enNuevos, listoSet]);
+  }, [rows, search, sortKey, sortDir, filtro, enNuevos, listoSet, overlay]);
 
   const toggleSort = (k: SortKey) => {
     if (sortKey === k) setSortDir(d => d === "asc" ? "desc" : "asc");
@@ -181,27 +173,19 @@ export default function VelocidadTable({ rows }: { rows: VelocidadRow[] }) {
   // ── Gestión del filtro "Producto nuevo" (SKUs existentes del catálogo) ──
   const [addSku, setAddSku] = useState("");
   const [addMsg, setAddMsg] = useState<{ ok: boolean; text: string } | null>(null);
-  const [busy, setBusy] = useState(false);
 
-  const agregarNuevo = async () => {
-    const sku = addSku.trim();
+  const agregarNuevo = () => {
+    const sku = addSku.trim().toUpperCase();
     if (!sku) return;
-    setBusy(true); setAddMsg(null);
-    try {
-      const res = await fetch("/api/productos-nuevos", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sku }) });
-      const o = await res.json();
-      if (!res.ok) { setAddMsg({ ok: false, text: o.error ?? "Error" }); return; }
-      setAddMsg({ ok: true, text: o.yaEstaba ? `${sku} ya estaba en el filtro` : `✓ ${sku} agregado` });
-      setAddSku(""); router.refresh();
-    } catch { setAddMsg({ ok: false, text: "Error de red" }); }
-    finally { setBusy(false); }
+    const row = rows.find(r => r.sku === sku);
+    if (!row) { setAddMsg({ ok: false, text: `SKU no encontrado: ${sku}` }); return; }
+    if (esNuevoEff(row)) { setAddMsg({ ok: true, text: `${sku} ya estaba en el filtro` }); return; }
+    addNuevo(sku);
+    setAddMsg({ ok: true, text: `✓ ${sku} agregado` });
+    setAddSku("");
   };
 
-  const quitarNuevo = async (sku: string) => {
-    setBusy(true);
-    try { await fetch(`/api/productos-nuevos?sku=${encodeURIComponent(sku)}`, { method: "DELETE" }); router.refresh(); }
-    finally { setBusy(false); }
-  };
+  const quitarNuevo = (sku: string) => removeNuevo(sku);
 
   return (
     <div className="space-y-3">
@@ -222,7 +206,7 @@ export default function VelocidadTable({ rows }: { rows: VelocidadRow[] }) {
         </button>
         <button onClick={() => setFiltro("pendientes")}
           className={`text-xs px-3 py-2 rounded-lg border transition-colors ${filtro === "pendientes" ? "bg-amber-50 text-amber-700 border-amber-200" : "bg-white text-slate-500 border-slate-200 hover:bg-slate-50"}`}>
-          ⏳ Nuevos pendientes ({rows.filter(r => r.esNuevo && !listoSet.has(r.sku)).length})
+          ⏳ Nuevos pendientes ({rows.filter(r => esNuevoEff(r) && !listoSet.has(r.sku)).length})
         </button>
         <span className="text-xs text-slate-400">{visible.length} productos</span>
         <button onClick={exportCsv}
@@ -241,9 +225,9 @@ export default function VelocidadTable({ rows }: { rows: VelocidadRow[] }) {
             onKeyDown={e => { if (e.key === "Enter") agregarNuevo(); }}
             className="bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-emerald-400 w-48 font-mono"
           />
-          <button onClick={agregarNuevo} disabled={busy || !addSku.trim()}
+          <button onClick={agregarNuevo} disabled={!addSku.trim()}
             className="text-xs bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-white px-3 py-1.5 rounded-lg">
-            {busy ? "…" : "Agregar"}
+            Agregar
           </button>
           {addMsg && <span className={`text-xs ${addMsg.ok ? "text-emerald-700" : "text-red-600"}`}>{addMsg.text}</span>}
           <span className="text-slate-400 text-[11px] ml-auto">Se agrega al final (orden de llegada).</span>
