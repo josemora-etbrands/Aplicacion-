@@ -112,6 +112,16 @@ no desde el server de Vercel. Todo lo demás SÍ sale con el Bearer (`/api/v1/*`
 
 ## 7. CHANGELOG (más reciente arriba)
 
+### 2026-06-23 — Rediseño claro + mejoras de UX ✓
+- **Rediseño completo a tema claro** (Linear/Notion): fondo slate-50, cards blancas, acento azul.
+  Toda la funcionalidad intacta. Logo ET Brands (SVG) en el sidebar.
+- SKU en naranjo; filas "Listo" con fondo verde claro; encabezado de tabla **sticky**.
+- Filtro **"Nuevos pendientes"** (nuevos no marcados Listo), además de "Todos" y "Producto nuevo".
+- Detalle por SKU: **"X días desde que llegó"** junto a la categoría — SOLO productos nuevos,
+  usando fechas de llegada REALES manuales en `FECHAS_LLEGADA_NUEVOS` (productosNuevos.ts).
+  (Se agregó columna `fechaLlegada` en DB con la fecha de creación PG vía sync-catalog, pero el
+  display usa las fechas manuales y solo para nuevos.)
+
 ### 2026-06-19 (noche 9) — Botón "Listo" por SKU en Estado ✓
 - Columna `listo` (bool) en products (migración). `/api/marcar-listo` (POST {sku, listo}).
 - En la columna Estado, botón ✓ a la derecha del badge: marca el SKU como "Listo" (badge verde
