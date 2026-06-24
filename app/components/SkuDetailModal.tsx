@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState, useCallback, useRef } from "react";
+import { FECHAS_LLEGADA_NUEVOS } from "@/app/lib/productosNuevos";
 
 /* ─── Tipos ──────────────────────────────────────────────────────────────── */
 interface PalancaLog { id: string; tipoPalanca: string; fechaInicio: string; comentario: string | null; createdAt: string; }
@@ -256,9 +257,11 @@ export default function SkuDetailModal({ sku, onClose }: { sku: string; onClose:
   const toggle = (k: string) => setActive(prev => { const s = new Set(prev); s.has(k) ? s.delete(k) : s.add(k); return s; });
   const d = data?.detalle ?? null;
 
-  // Días desde que llegó el stock (antigüedad), solo si la app tiene la fecha.
-  const diasDesdeLlegada = data?.product.fechaLlegada
-    ? Math.max(0, Math.floor((Date.now() - new Date(data.product.fechaLlegada).getTime()) / 86400000))
+  // Días desde que llegó el stock. Prioriza la fecha de llegada manual (productos nuevos);
+  // si no, usa la fecha de creación de PG. Solo se muestra si hay alguna fecha.
+  const fechaLlegada = FECHAS_LLEGADA_NUEVOS[sku] ?? data?.product.fechaLlegada ?? null;
+  const diasDesdeLlegada = fechaLlegada
+    ? Math.max(0, Math.floor((Date.now() - new Date(fechaLlegada).getTime()) / 86400000))
     : null;
 
   return (
