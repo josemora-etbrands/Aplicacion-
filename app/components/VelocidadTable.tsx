@@ -104,8 +104,15 @@ export default function VelocidadTable({ rows }: { rows: VelocidadRow[] }) {
   const weekVal = (r: VelocidadRow, y: number, n: number) =>
     r.weeks.find(w => w.year === y && w.number === n)?.units ?? 0;
 
-  const cur = semanaActual();
-  const esActual = (w: { year: number; number: number }) => w.year === cur.year && w.number === cur.week;
+  // Última semana CERRADA = la mayor semana de los datos que es anterior a la semana en curso.
+  const cerrada = (() => {
+    const cur = semanaActual();
+    const curOrder = cur.year * 100 + cur.week;
+    const previas = weekCols.filter(w => w.year * 100 + w.number < curOrder);
+    if (previas.length) return previas.reduce((a, b) => (a.year * 100 + a.number) > (b.year * 100 + b.number) ? a : b);
+    return weekCols[weekCols.length - 1] ?? null;
+  })();
+  const esActual = (w: { year: number; number: number }) => cerrada != null && w.year === cerrada.year && w.number === cerrada.number;
   const colActual = "border-x border-dotted border-slate-300";
 
   const visible = useMemo(() => {
@@ -242,7 +249,7 @@ export default function VelocidadTable({ rows }: { rows: VelocidadRow[] }) {
                 <th className={th} onClick={() => toggleSort("velocidad")}>Velocidad Madura{arrow("velocidad")}</th>
                 {weekCols.map(w => (
                   <th key={`${w.year}-${w.number}`} className={`${th} text-center ${esActual(w) ? colActual : ""}`} onClick={() => toggleSort(`w:${w.year}-${w.number}`)}>
-                    W{w.number}{esActual(w) ? " •" : ""}{arrow(`w:${w.year}-${w.number}`)}
+                    W{w.number}{arrow(`w:${w.year}-${w.number}`)}
                   </th>
                 ))}
                 <th className={th} onClick={() => toggleSort("promedio")}>Promedio{arrow("promedio")}</th>
