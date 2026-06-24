@@ -60,7 +60,7 @@ function impactoUnidades(fechaInicio: string, series: SerieWeek[]): number | nul
 function Desempeno({ series, active }: { series: SerieWeek[]; active: Set<string> }) {
   const [hover, setHover] = useState<number | null>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
-  if (!series.length) return <div className="h-48 flex items-center justify-center text-white/20 text-sm">Sin datos de desempeño</div>;
+  if (!series.length) return <div className="h-48 flex items-center justify-center text-slate-400 text-sm">Sin datos de desempeño</div>;
 
   const W = 900, H = 260, PAD_L = 8, PAD_R = 8, PAD_T = 16, PAD_B = 26;
   const n = series.length;
@@ -146,7 +146,7 @@ function AddPalancaForm({ sku, onAdded }: { sku: string; onAdded: () => void }) 
       </div>
       <input type="text" value={comment} onChange={e => setComment(e.target.value)} placeholder="Comentario (opcional) — ej: subimos presupuesto a $15k/día"
         className="w-full bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-xs text-slate-800 placeholder-slate-400" />
-      <button type="submit" disabled={loading} className="bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-xs font-medium px-4 py-1.5 rounded-lg">
+      <button type="submit" disabled={loading} className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-xs font-medium px-4 py-1.5 rounded-lg">
         {loading ? "Guardando…" : "Registrar palanca"}
       </button>
     </form>
