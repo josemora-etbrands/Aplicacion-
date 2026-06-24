@@ -112,6 +112,15 @@ no desde el server de Vercel. Todo lo demás SÍ sale con el Bearer (`/api/v1/*`
 
 ## 7. CHANGELOG (más reciente arriba)
 
+### 2026-06-24 (cont.) — MODO DEMO (data real retirada) ✓
+- A pedido (el jefe no quiere data real en DB externa): se exportaron las palancas a Excel
+  (`Palancas_ET_Brands.xlsx`), se BORRÓ toda la data (productos/ventas/palancas; users conservados)
+  y se sembraron **10 SKUs ficticios** (DEMO001–010) con datos realistas vía `/api/admin/reset-demo`.
+- **Cron APAGADO** (vercel.json sin crons) para que NO se re-sincronice data real automáticamente.
+- `productosNuevos.ts` ahora tiene los 5 demo como "nuevos". La data real sigue re-sincronizable
+  desde PG (bookmarklet / sync-api) si se reactiva, hasta que se elimine la DB.
+- Endpoints nuevos: `/api/admin/export-palancas`, `/api/admin/reset-demo` (ambos x-ingest-secret).
+
 ### 2026-06-24 — Autenticación (login) ✓
 - App ahora REQUIERE login. `proxy.ts` (ex middleware, Next 16) protege todas las páginas y APIs
   de datos; públicos solo /login, /registro, /api/auth/*, e ingest/cron/admin (secreto propio).
