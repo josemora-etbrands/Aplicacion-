@@ -112,6 +112,18 @@ no desde el server de Vercel. Todo lo demás SÍ sale con el Bearer (`/api/v1/*`
 
 ## 7. CHANGELOG (más reciente arriba)
 
+### 2026-06-24 (cont.2) — MODO SIN BASE DE DATOS ✓
+- La app ya NO usa Prisma/Postgres. Toda la data viene embebida en `app/lib/demoData.ts`
+  (10 SKUs demo con detalle). `/api/sku` y la home leen de ahí.
+- Interactividad (Listo, palancas CRUD/implementado, filtro productos nuevos) persiste en
+  el navegador vía `app/lib/store.ts` (localStorage). Sin servidor de estado.
+- **Login eliminado** (sin auth/proxy) — demo abierta. Eliminados: sync/ingest/admin/cron,
+  libs ProfitGuard, Datos/Sync, prisma libs, dashboard viejo.
+- Solo quedan rutas: `/` (Velocidad), `/tareas`, `/api/sku/[sku]`. Build sin errores.
+- **Se puede eliminar el proyecto Supabase** sin afectar la app. (Prisma sigue en deps/schema
+  solo para que el build corra `prisma generate`; no hay conexión en runtime — opcional limpiarlo.)
+- Backup de palancas reales: `Palancas_ET_Brands.xlsx` (gitignored).
+
 ### 2026-06-24 (cont.) — MODO DEMO (data real retirada) ✓
 - A pedido (el jefe no quiere data real en DB externa): se exportaron las palancas a Excel
   (`Palancas_ET_Brands.xlsx`), se BORRÓ toda la data (productos/ventas/palancas; users conservados)
