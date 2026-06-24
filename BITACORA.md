@@ -112,6 +112,15 @@ no desde el server de Vercel. Todo lo demás SÍ sale con el Bearer (`/api/v1/*`
 
 ## 7. CHANGELOG (más reciente arriba)
 
+### 2026-06-23 (cont.2) — Pestaña Tareas + palancas "Implementado" ✓
+- Nueva pestaña **Tareas** (sidebar): lista TODAS las palancas registradas, agrupadas por acción,
+  con SKU/nombre/fecha/comentario. Server component lee palanca_logs.
+- Datos/Sync rediseñada: caja clara para la contraseña (INGEST_SECRET), "última actualización"
+  (max updatedAt de products, hora Chile) y explicación de cómo viajan los datos.
+- Campo `implementado` (bool) en PalancaLog (migración). PATCH palanca-log acepta `implementado`.
+  Check ✓ en Tareas y en el detalle del SKU → marca "Implementado" (persiste, bidireccional).
+  Tareas: contador pendientes/implementadas + "Ocultar implementadas".
+
 ### 2026-06-23 (cont.) — Detalle por Día/Semana/Mes + período ✓
 - El detalle por SKU trae la serie DIARIA del año (`group_by=day`) y el modal permite elegir
   granularidad (Día/Semana/Mes) y período (año/90/30/14 días), agregando client-side. KPIs se
