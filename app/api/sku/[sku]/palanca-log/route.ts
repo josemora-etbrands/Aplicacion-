@@ -53,13 +53,15 @@ export async function PATCH(
     tipoPalanca?: string;
     fechaInicio?: string;
     comentario?: string;
+    implementado?: boolean;
   };
   if (!body.id) return NextResponse.json({ error: "id requerido" }, { status: 400 });
 
-  const data: { tipoPalanca?: string; fechaInicio?: Date; comentario?: string | null } = {};
+  const data: { tipoPalanca?: string; fechaInicio?: Date; comentario?: string | null; implementado?: boolean } = {};
   if (body.tipoPalanca !== undefined) data.tipoPalanca = body.tipoPalanca.trim();
   if (body.fechaInicio !== undefined) data.fechaInicio = new Date(body.fechaInicio);
   if (body.comentario !== undefined)  data.comentario = body.comentario?.trim() || null;
+  if (body.implementado !== undefined) data.implementado = !!body.implementado;
 
   const log = await prisma.palancaLog.update({ where: { id: body.id }, data });
   return NextResponse.json({

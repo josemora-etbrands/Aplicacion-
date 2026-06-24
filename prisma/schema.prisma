@@ -100,13 +100,14 @@ model Palanca {
 }
 
 model PalancaLog {
-  id          String   @id @default(cuid())
-  productId   String
-  tipoPalanca String
-  fechaInicio DateTime
-  comentario  String?
-  createdAt   DateTime @default(now())
-  product     Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  id           String   @id @default(cuid())
+  productId    String
+  tipoPalanca  String
+  fechaInicio  DateTime
+  comentario   String?
+  implementado Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  product      Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
 
   @@map("palanca_logs")
 }

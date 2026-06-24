@@ -3,7 +3,7 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import { FECHAS_LLEGADA_NUEVOS } from "@/app/lib/productosNuevos";
 
 /* ─── Tipos ──────────────────────────────────────────────────────────────── */
-interface PalancaLog { id: string; tipoPalanca: string; fechaInicio: string; comentario: string | null; createdAt: string; }
+interface PalancaLog { id: string; tipoPalanca: string; fechaInicio: string; comentario: string | null; implementado?: boolean; createdAt: string; }
 interface ProductDetail {
   sku: string; nombre: string; categoria?: string | null;
   margenPct: number; stock: number; publicidad: number; ingresos: number; ventas: number; acos: number;
@@ -190,6 +190,13 @@ function PalancaRow({ sku, log, impacto, onChange }: { sku: string; log: Palanca
     try { await fetch(`/api/sku/${sku}/palanca-log?id=${log.id}`, { method: "DELETE" }); onChange(); }
     finally { setBusy(false); }
   };
+  const toggleImpl = async () => {
+    setBusy(true);
+    try {
+      await fetch(`/api/sku/${sku}/palanca-log`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: log.id, implementado: !log.implementado }) });
+      onChange();
+    } finally { setBusy(false); }
+  };
   if (editing) {
     return (
       <div className="bg-slate-50 rounded-lg px-3 py-2 border border-blue-200 space-y-2">
@@ -223,9 +230,14 @@ function PalancaRow({ sku, log, impacto, onChange }: { sku: string; log: Palanca
           {impacto > 0 ? `▲ aumentó en ${impacto} uds` : impacto < 0 ? `▼ bajó en ${Math.abs(impacto)} uds` : "= sin cambio"}
         </span>
       )}
-      <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
-        <button onClick={() => setEditing(true)} className="text-slate-400 hover:text-blue-600 text-xs" title="Editar">✎</button>
-        <button onClick={del} disabled={busy} className="text-slate-400 hover:text-red-500 text-xs" title="Eliminar">✕</button>
+      {log.implementado && <span className="border px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700 border-emerald-300 shrink-0">Implementado</span>}
+      <div className="flex items-center gap-1.5 shrink-0">
+        <button onClick={toggleImpl} disabled={busy} title={log.implementado ? "Marcar pendiente" : "Marcar implementado"}
+          className={`w-5 h-5 rounded-full border flex items-center justify-center text-[11px] leading-none ${log.implementado ? "bg-emerald-500 text-white border-emerald-500" : "border-slate-300 text-slate-300 hover:text-emerald-600 hover:border-emerald-400"}`}>✓</button>
+        <span className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+          <button onClick={() => setEditing(true)} className="text-slate-400 hover:text-blue-600 text-xs" title="Editar">✎</button>
+          <button onClick={del} disabled={busy} className="text-slate-400 hover:text-red-500 text-xs" title="Eliminar">✕</button>
+        </span>
       </div>
     </div>
   );

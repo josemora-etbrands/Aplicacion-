@@ -45,6 +45,7 @@ export async function GET(
       tipoPalanca: l.tipoPalanca,
       fechaInicio: l.fechaInicio.toISOString(),
       comentario:  l.comentario,
+      implementado: l.implementado,
       createdAt:   l.createdAt.toISOString(),
     })),
   });

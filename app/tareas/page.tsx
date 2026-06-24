@@ -1,16 +1,8 @@
 import { prisma } from "@/lib/prisma";
 import Sidebar from "@/app/components/Sidebar";
+import TareasList, { type Tarea } from "@/app/components/TareasList";
 
 export const dynamic = "force-dynamic";
-
-function fmtDate(d: Date): string {
-  return new Intl.DateTimeFormat("es-CL", { day: "2-digit", month: "short", year: "numeric" }).format(d);
-}
-
-interface Tarea {
-  id: string; tipoPalanca: string; fechaInicio: Date; comentario: string | null;
-  sku: string; nombre: string;
-}
 
 async function getTareas(): Promise<{ tareas: Tarea[]; error: boolean }> {
   try {
@@ -20,7 +12,8 @@ async function getTareas(): Promise<{ tareas: Tarea[]; error: boolean }> {
     });
     return {
       tareas: logs.map(l => ({
-        id: l.id, tipoPalanca: l.tipoPalanca, fechaInicio: l.fechaInicio, comentario: l.comentario,
+        id: l.id, tipoPalanca: l.tipoPalanca, fecha: l.fechaInicio.toISOString(),
+        comentario: l.comentario, implementado: l.implementado,
         sku: l.product.sku, nombre: l.product.nombre,
       })),
       error: false,
@@ -32,14 +25,6 @@ async function getTareas(): Promise<{ tareas: Tarea[]; error: boolean }> {
 
 export default async function TareasPage() {
   const { tareas, error } = await getTareas();
-
-  // Agrupar por tipo de palanca (para aplicar en lote la misma acción)
-  const grupos = new Map<string, Tarea[]>();
-  for (const t of tareas) {
-    if (!grupos.has(t.tipoPalanca)) grupos.set(t.tipoPalanca, []);
-    grupos.get(t.tipoPalanca)!.push(t);
-  }
-  const gruposOrdenados = [...grupos.entries()].sort((a, b) => b[1].length - a[1].length);
 
   return (
     <div className="flex h-full min-h-screen bg-slate-50">
@@ -55,42 +40,18 @@ export default async function TareasPage() {
           </span>
         </div>
 
-        <div className="px-8 py-6 max-w-3xl mx-auto space-y-5">
-          {error && (
+        <div className="px-8 py-6 max-w-3xl mx-auto">
+          {error ? (
             <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-red-700 text-sm">⚠ Sin conexión a la base de datos.</div>
-          )}
-
-          {!error && tareas.length === 0 && (
+          ) : tareas.length === 0 ? (
             <div className="rounded-xl border border-slate-200 bg-white shadow-sm p-10 text-center space-y-2">
               <div className="text-4xl">✅</div>
               <p className="text-slate-900 text-base font-semibold">No hay palancas registradas</p>
               <p className="text-slate-500 text-sm">Registra palancas desde el detalle de un SKU (clic en el SKU) y aparecerán aquí.</p>
             </div>
+          ) : (
+            <TareasList tareas={tareas} />
           )}
-
-          {gruposOrdenados.map(([tipo, items]) => (
-            <section key={tipo} className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-              <div className="flex items-center justify-between px-5 py-3 border-b border-slate-100 bg-slate-50">
-                <h2 className="text-sm font-semibold text-slate-800">{tipo}</h2>
-                <span className="text-xs text-slate-400">{items.length} {items.length === 1 ? "producto" : "productos"}</span>
-              </div>
-              <ul className="divide-y divide-slate-100">
-                {items.map(t => (
-                  <li key={t.id} className="px-5 py-3 flex items-start justify-between gap-4">
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-mono text-orange-600 text-sm">{t.sku}</span>
-                        <span className="text-slate-300 text-xs">·</span>
-                        <span className="text-slate-400 text-xs">{fmtDate(t.fechaInicio)}</span>
-                      </div>
-                      <p className="text-slate-700 text-sm mt-0.5 truncate">{t.nombre}</p>
-                      {t.comentario && <p className="text-slate-500 text-xs mt-0.5 italic">“{t.comentario}”</p>}
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            </section>
-          ))}
         </div>
       </main>
     </div>
