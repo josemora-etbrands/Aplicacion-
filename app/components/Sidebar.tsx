@@ -1,6 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import Logo from "./Logo";
 
 const nav = [
   { href: "/",          icon: "⚡", label: "Velocidad de Ventas" },
@@ -13,8 +14,7 @@ export default function Sidebar() {
     <aside className="flex flex-col w-60 min-h-screen bg-white border-r border-slate-200">
       {/* Logo */}
       <div className="px-6 py-5 border-b border-slate-100">
-        <span className="text-blue-600 font-bold text-lg tracking-tight">ET Brands</span>
-        <span className="text-slate-400 text-xs block mt-0.5">Analysis Platform</span>
+        <Logo className="w-28 h-auto" />
       </div>
 
       {/* Nav */}
