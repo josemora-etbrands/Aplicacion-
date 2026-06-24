@@ -65,7 +65,8 @@ export default function VelocidadTable({ rows }: { rows: VelocidadRow[] }) {
   const [sortKey, setSortKey] = useState<SortKey>("velocidad");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const [selectedSku, setSelectedSku] = useState<string | null>(null);
-  const [soloNuevos, setSoloNuevos] = useState(false);
+  const [filtro, setFiltro] = useState<"off" | "todos" | "pendientes">("off");
+  const enNuevos = filtro !== "off";
   const router = useRouter();
 
   const hasStatus = rows.some(r => r.status);
@@ -97,12 +98,13 @@ export default function VelocidadTable({ rows }: { rows: VelocidadRow[] }) {
   const visible = useMemo(() => {
     const q = search.trim().toLowerCase();
     const filtered = rows.filter(r => {
-      if (soloNuevos && !r.esNuevo) return false;
+      if (enNuevos && !r.esNuevo) return false;
+      if (filtro === "pendientes" && listoSet.has(r.sku)) return false;
       if (q && !r.sku.toLowerCase().includes(q) && !r.nombre.toLowerCase().includes(q)) return false;
       return true;
     });
-    // Con el filtro "Producto nuevo" SIEMPRE se mantiene el orden de llegada.
-    if (soloNuevos) {
+    // En los filtros de nuevos SIEMPRE se mantiene el orden de llegada.
+    if (enNuevos) {
       return [...filtered].sort((a, b) => (a.ordenLlegada ?? 9e9) - (b.ordenLlegada ?? 9e9));
     }
     const rank: Record<string, number> = { ROJO: 0, SIN_STOCK: 1, AMARILLO: 2, VERDE: 3 };
@@ -121,7 +123,7 @@ export default function VelocidadTable({ rows }: { rows: VelocidadRow[] }) {
         ? va - vb : String(va).localeCompare(String(vb));
       return sortDir === "asc" ? cmp : -cmp;
     });
-  }, [rows, search, sortKey, sortDir, soloNuevos]);
+  }, [rows, search, sortKey, sortDir, filtro, enNuevos, listoSet]);
 
   const toggleSort = (k: SortKey) => {
     if (sortKey === k) setSortDir(d => d === "asc" ? "desc" : "asc");
@@ -178,13 +180,17 @@ export default function VelocidadTable({ rows }: { rows: VelocidadRow[] }) {
           value={search} onChange={e => setSearch(e.target.value)}
           className="bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 w-64 shadow-sm"
         />
-        <button onClick={() => setSoloNuevos(false)}
-          className={`text-xs px-3 py-2 rounded-lg border transition-colors ${!soloNuevos ? "bg-blue-50 text-blue-700 border-blue-200" : "bg-white text-slate-500 border-slate-200 hover:bg-slate-50"}`}>
+        <button onClick={() => setFiltro("off")}
+          className={`text-xs px-3 py-2 rounded-lg border transition-colors ${filtro === "off" ? "bg-blue-50 text-blue-700 border-blue-200" : "bg-white text-slate-500 border-slate-200 hover:bg-slate-50"}`}>
           Todos
         </button>
-        <button onClick={() => setSoloNuevos(true)}
-          className={`text-xs px-3 py-2 rounded-lg border transition-colors ${soloNuevos ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-white text-slate-500 border-slate-200 hover:bg-slate-50"}`}>
+        <button onClick={() => setFiltro("todos")}
+          className={`text-xs px-3 py-2 rounded-lg border transition-colors ${filtro === "todos" ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-white text-slate-500 border-slate-200 hover:bg-slate-50"}`}>
           ✨ Producto nuevo ({nuevosCount})
+        </button>
+        <button onClick={() => setFiltro("pendientes")}
+          className={`text-xs px-3 py-2 rounded-lg border transition-colors ${filtro === "pendientes" ? "bg-amber-50 text-amber-700 border-amber-200" : "bg-white text-slate-500 border-slate-200 hover:bg-slate-50"}`}>
+          ⏳ Nuevos pendientes ({rows.filter(r => r.esNuevo && !listoSet.has(r.sku)).length})
         </button>
         <span className="text-xs text-slate-400">{visible.length} productos</span>
         <button onClick={exportCsv}
@@ -194,7 +200,7 @@ export default function VelocidadTable({ rows }: { rows: VelocidadRow[] }) {
       </div>
 
       {/* Gestión del filtro "Producto nuevo" — agregar un SKU existente */}
-      {soloNuevos && (
+      {enNuevos && (
         <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 flex items-center gap-2 flex-wrap">
           <span className="text-xs text-slate-500">Agregar SKU existente al filtro:</span>
           <input
@@ -240,7 +246,7 @@ export default function VelocidadTable({ rows }: { rows: VelocidadRow[] }) {
                       {r.sku}
                     </button>
                     {r.asociaciones > 1 && <span className="text-slate-400 ml-1">({r.asociaciones} productos)</span>}
-                    {soloNuevos && (
+                    {enNuevos && (
                       <button onClick={() => quitarNuevo(r.sku)} title="Quitar del filtro"
                         className="ml-2 text-slate-300 hover:text-red-500 text-xs">✕</button>
                     )}
