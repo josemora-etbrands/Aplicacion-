@@ -60,6 +60,15 @@ function fmt(n: number): string {
   return n.toLocaleString("es-CL");
 }
 
+/** Semana ISO actual (año + número) para resaltar su columna. */
+function semanaActual(): { year: number; week: number } {
+  const d = new Date();
+  const dt = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+  dt.setUTCDate(dt.getUTCDate() + 4 - (dt.getUTCDay() || 7));
+  const ys = new Date(Date.UTC(dt.getUTCFullYear(), 0, 1));
+  return { year: dt.getUTCFullYear(), week: Math.ceil((((dt.getTime() - ys.getTime()) / 86400000) + 1) / 7) };
+}
+
 export default function VelocidadTable({ rows }: { rows: VelocidadRow[] }) {
   const [search, setSearch]   = useState("");
   const [sortKey, setSortKey] = useState<SortKey>("velocidad");
@@ -94,6 +103,10 @@ export default function VelocidadTable({ rows }: { rows: VelocidadRow[] }) {
 
   const weekVal = (r: VelocidadRow, y: number, n: number) =>
     r.weeks.find(w => w.year === y && w.number === n)?.units ?? 0;
+
+  const cur = semanaActual();
+  const esActual = (w: { year: number; number: number }) => w.year === cur.year && w.number === cur.week;
+  const colActual = "border-x border-dotted border-slate-300";
 
   const visible = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -228,8 +241,8 @@ export default function VelocidadTable({ rows }: { rows: VelocidadRow[] }) {
                 <th className={th} onClick={() => toggleSort("velocidad")}>Velocidad Inicial{arrow("velocidad")}</th>
                 <th className={th} onClick={() => toggleSort("velocidad")}>Velocidad Madura{arrow("velocidad")}</th>
                 {weekCols.map(w => (
-                  <th key={`${w.year}-${w.number}`} className={`${th} text-center`} onClick={() => toggleSort(`w:${w.year}-${w.number}`)}>
-                    W{w.number}{arrow(`w:${w.year}-${w.number}`)}
+                  <th key={`${w.year}-${w.number}`} className={`${th} text-center ${esActual(w) ? colActual : ""}`} onClick={() => toggleSort(`w:${w.year}-${w.number}`)}>
+                    W{w.number}{esActual(w) ? " •" : ""}{arrow(`w:${w.year}-${w.number}`)}
                   </th>
                 ))}
                 <th className={th} onClick={() => toggleSort("promedio")}>Promedio{arrow("promedio")}</th>
@@ -257,7 +270,7 @@ export default function VelocidadTable({ rows }: { rows: VelocidadRow[] }) {
                   <td className="px-3 py-2.5 font-mono text-slate-800 font-medium">{fmt(maduraOf(r))}</td>
                   {weekCols.map(w => {
                     const v = weekVal(r, w.year, w.number);
-                    return <td key={`${w.year}-${w.number}`} className={`px-3 py-2.5 text-center font-mono ${weekColor(v, inicialOf(r), maduraOf(r))}`}>{v ? fmt(v) : "—"}</td>;
+                    return <td key={`${w.year}-${w.number}`} className={`px-3 py-2.5 text-center font-mono ${weekColor(v, inicialOf(r), maduraOf(r))} ${esActual(w) ? colActual : ""}`}>{v ? fmt(v) : "—"}</td>;
                   })}
                   <td className="px-3 py-2.5 font-mono text-slate-600">{fmt(r.promedio)}</td>
                   <td className="px-3 py-2.5 font-mono text-slate-400">{fmt(r.stockTotal)}</td>
