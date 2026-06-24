@@ -17,10 +17,14 @@ interface VData {
 }
 
 type SeriePt = { date?: string; units: number; marginPercentage: number; averageTicketCents: number };
-/** Margen ponderado de la semana ISO más reciente con ventas, desde la serie diaria. */
-function margenReciente(series?: SeriePt[]): number | null {
+/**
+ * Margen ponderado por semana (desde la serie diaria):
+ *   actual  = semana más reciente con ventas.
+ *   cerrado = la semana inmediatamente anterior con ventas.
+ */
+function margenes(series?: SeriePt[]): { actual: number | null; cerrado: number | null } {
   const pts = (series ?? []).filter(p => p.date && p.units > 0);
-  if (!pts.length) return null;
+  if (!pts.length) return { actual: null, cerrado: null };
   const isoK = (ds: string) => {
     const d = new Date(ds);
     const dt = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
@@ -28,11 +32,17 @@ function margenReciente(series?: SeriePt[]): number | null {
     const ys = new Date(Date.UTC(dt.getUTCFullYear(), 0, 1));
     return dt.getUTCFullYear() * 100 + Math.ceil((((dt.getTime() - ys.getTime()) / 86400000) + 1) / 7);
   };
-  const maxK = Math.max(...pts.map(p => isoK(p.date!)));
-  const wk = pts.filter(p => isoK(p.date!) === maxK);
-  const income = wk.reduce((s, p) => s + p.units * p.averageTicketCents, 0);
-  if (income <= 0) return null;
-  return Math.round((wk.reduce((s, p) => s + p.marginPercentage * p.units * p.averageTicketCents, 0) / income) * 10) / 10;
+  const m = new Map<number, { inc: number; mInc: number }>();
+  for (const p of pts) {
+    const k = isoK(p.date!);
+    const inc = p.units * p.averageTicketCents;
+    const e = m.get(k) ?? { inc: 0, mInc: 0 };
+    e.inc += inc; e.mInc += p.marginPercentage * inc;
+    m.set(k, e);
+  }
+  const weeks = [...m.entries()].sort((a, b) => b[0] - a[0])
+    .map(([, e]) => e.inc > 0 ? Math.round((e.mInc / e.inc) * 10) / 10 : null);
+  return { actual: weeks[0] ?? null, cerrado: weeks[1] ?? null };
 }
 
 async function getData(): Promise<{ rows: VelocidadRow[]; error: string | null }> {
@@ -83,7 +93,7 @@ async function getData(): Promise<{ rows: VelocidadRow[]; error: string | null }
         asociaciones: Number(d.asociaciones ?? 0), weeks,
         status, statusLabel, palancas,
         esNuevo: p.esNuevo, ordenLlegada: p.ordenLlegada ?? null, listo: p.listo,
-        margenSemana: margenReciente(d.detalle?.series),
+        ...(() => { const mg = margenes(d.detalle?.series); return { margenActual: mg.actual, margenCerrado: mg.cerrado }; })(),
       };
     });
 
