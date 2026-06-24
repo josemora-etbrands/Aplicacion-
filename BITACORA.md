@@ -112,6 +112,15 @@ no desde el server de Vercel. Todo lo demás SÍ sale con el Bearer (`/api/v1/*`
 
 ## 7. CHANGELOG (más reciente arriba)
 
+### 2026-06-24 (cont.3) — BASE DE DATOS SUPABASE ELIMINADA ✓ (EVIDENCIA)
+- El usuario eliminó el proyecto de Supabase desde el dashboard. Confirmado en pantalla con
+  el aviso: **"Successfully deleted josemora-etbrands's Project"** (org `josemora-etbrands's Org`,
+  plan FREE, ya sin proyectos: "Create a project").
+- Registro/evidencia de la eliminación tomado por captura de pantalla el 2026-06-24.
+- La app sigue operando 100% con data embebida (`demoData.ts`) + localStorage; sin conexión a DB.
+- Pendiente opcional: limpiar variables en Vercel (DATABASE_URL, DIRECT_URL, NEXTAUTH_*, GOOGLE_*,
+  INGEST_SECRET) — ya no se usan.
+
 ### 2026-06-24 (cont.2) — MODO SIN BASE DE DATOS ✓
 - La app ya NO usa Prisma/Postgres. Toda la data viene embebida en `app/lib/demoData.ts`
   (10 SKUs demo con detalle). `/api/sku` y la home leen de ahí.
