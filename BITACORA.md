@@ -112,6 +112,18 @@ no desde el server de Vercel. Todo lo demás SÍ sale con el Bearer (`/api/v1/*`
 
 ## 7. CHANGELOG (más reciente arriba)
 
+### 2026-06-24 — Autenticación (login) ✓
+- App ahora REQUIERE login. `proxy.ts` (ex middleware, Next 16) protege todas las páginas y APIs
+  de datos; públicos solo /login, /registro, /api/auth/*, e ingest/cron/admin (secreto propio).
+- Sesión: JWT HS256 firmado con NEXTAUTH_SECRET (jose), en cookie httpOnly+secure (7 días).
+  Contraseñas con bcrypt. Campo `password` en User (migración).
+- Registro **restringido a correos @etbrands.cl**. Login con correo/clave + **"Continuar con Google"**
+  (OAuth, también restringido a @etbrands.cl). Logout en el sidebar.
+- **Google OAuth requiere** `GOOGLE_CLIENT_ID` y `GOOGLE_CLIENT_SECRET` en Vercel + redirect URI
+  `https://aplicacion-neon.vercel.app/api/auth/google/callback`. Sin esas vars, el botón redirige
+  a /login con aviso (no rompe); el login por correo/clave funciona igual.
+- Pendiente del usuario: crear credencial OAuth en Google Cloud y registrar su 1er usuario.
+
 ### 2026-06-23 (cont.2) — Pestaña Tareas + palancas "Implementado" ✓
 - Nueva pestaña **Tareas** (sidebar): lista TODAS las palancas registradas, agrupadas por acción,
   con SKU/nombre/fecha/comentario. Server component lee palanca_logs.
