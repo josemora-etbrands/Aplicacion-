@@ -41,6 +41,15 @@ export interface VelocidadRow {
   ordenLlegada?: number | null;
   // Marca manual "Listo"
   listo?:        boolean;
+  // Margen % de la semana más reciente
+  margenSemana?: number | null;
+}
+
+function margenColor(m: number | null | undefined): string {
+  if (m == null) return "text-slate-300";
+  if (m < 0) return "text-red-600";
+  if (m < 15) return "text-amber-600";
+  return "text-emerald-600";
 }
 
 type SortKey = "velocidad" | "promedio" | "stockTotal" | "categoria" | "nombre" | "status" | string; // "w:2026-21"
@@ -134,6 +143,7 @@ export default function VelocidadTable({ rows }: { rows: VelocidadRow[] }) {
         return weekVal(r, y, n);
       }
       if (sortKey === "status") return rank[r.status ?? ""] ?? 9;
+      if (sortKey === "margenSemana") return r.margenSemana ?? -Infinity;
       if (sortKey === "velocidad") return maduraOf(r);
       return (r as unknown as Record<string, number | string>)[sortKey];
     };
@@ -245,6 +255,7 @@ export default function VelocidadTable({ rows }: { rows: VelocidadRow[] }) {
               <tr className="border-b border-slate-200">
                 <th className={th} onClick={() => toggleSort("nombre")}>Producto{arrow("nombre")}</th>
                 <th className={th} onClick={() => toggleSort("categoria")}>Categoría{arrow("categoria")}</th>
+                <th className={th} onClick={() => toggleSort("margenSemana")}>Margen{arrow("margenSemana")}</th>
                 <th className={th} onClick={() => toggleSort("velocidad")}>Velocidad Inicial{arrow("velocidad")}</th>
                 <th className={th} onClick={() => toggleSort("velocidad")}>Velocidad Madura{arrow("velocidad")}</th>
                 {weekCols.map(w => (
@@ -273,6 +284,7 @@ export default function VelocidadTable({ rows }: { rows: VelocidadRow[] }) {
                     <span className="block text-slate-600 truncate">{r.nombre}</span>
                   </td>
                   <td className={`px-3 py-2.5 font-semibold ${catColor[r.categoria] ?? "text-slate-400"}`}>{r.categoria || "—"}</td>
+                  <td className={`px-3 py-2.5 font-mono ${margenColor(r.margenSemana)}`}>{r.margenSemana != null ? `${r.margenSemana.toFixed(1)}%` : "—"}</td>
                   <td className="px-3 py-2.5 font-mono text-slate-400">{fmt(inicialOf(r))}</td>
                   <td className="px-3 py-2.5 font-mono text-slate-800 font-medium">{fmt(maduraOf(r))}</td>
                   {weekCols.map(w => {

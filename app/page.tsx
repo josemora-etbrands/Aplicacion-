@@ -13,6 +13,26 @@ interface VData {
   stockTotal?: number | null;
   asociaciones?: number | null;
   weeks?: Array<{ number: number; year: number; units: number }>;
+  detalle?: { series?: Array<{ date?: string; units: number; marginPercentage: number; averageTicketCents: number }> } | null;
+}
+
+type SeriePt = { date?: string; units: number; marginPercentage: number; averageTicketCents: number };
+/** Margen ponderado de la semana ISO más reciente con ventas, desde la serie diaria. */
+function margenReciente(series?: SeriePt[]): number | null {
+  const pts = (series ?? []).filter(p => p.date && p.units > 0);
+  if (!pts.length) return null;
+  const isoK = (ds: string) => {
+    const d = new Date(ds);
+    const dt = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+    dt.setUTCDate(dt.getUTCDate() + 4 - (dt.getUTCDay() || 7));
+    const ys = new Date(Date.UTC(dt.getUTCFullYear(), 0, 1));
+    return dt.getUTCFullYear() * 100 + Math.ceil((((dt.getTime() - ys.getTime()) / 86400000) + 1) / 7);
+  };
+  const maxK = Math.max(...pts.map(p => isoK(p.date!)));
+  const wk = pts.filter(p => isoK(p.date!) === maxK);
+  const income = wk.reduce((s, p) => s + p.units * p.averageTicketCents, 0);
+  if (income <= 0) return null;
+  return Math.round((wk.reduce((s, p) => s + p.marginPercentage * p.units * p.averageTicketCents, 0) / income) * 10) / 10;
 }
 
 async function getData(): Promise<{ rows: VelocidadRow[]; error: string | null }> {
@@ -63,6 +83,7 @@ async function getData(): Promise<{ rows: VelocidadRow[]; error: string | null }
         asociaciones: Number(d.asociaciones ?? 0), weeks,
         status, statusLabel, palancas,
         esNuevo: p.esNuevo, ordenLlegada: p.ordenLlegada ?? null, listo: p.listo,
+        margenSemana: margenReciente(d.detalle?.series),
       };
     });
 
