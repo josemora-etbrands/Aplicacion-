@@ -15,10 +15,10 @@ function inicialOf(r: { sku: string; velocidad: number }): number {
 }
 /** Color de la venta semanal vs metas: verde ≥ madura, amarillo ≥ inicial, blanco < inicial. */
 function weekColor(v: number, inicial: number, madura: number): string {
-  if (v <= 0) return "text-white/15";
-  if (madura > 0 && v >= madura) return "text-emerald-400";
-  if (inicial > 0 && v >= inicial) return "text-yellow-400";
-  return "text-white/80";
+  if (v <= 0) return "text-slate-300";
+  if (madura > 0 && v >= madura) return "text-emerald-600 font-semibold";
+  if (inicial > 0 && v >= inicial) return "text-amber-600";
+  return "text-slate-700";
 }
 
 export type RowStatus = "VERDE" | "AMARILLO" | "ROJO" | "SIN_STOCK" | null;
@@ -46,14 +46,14 @@ export interface VelocidadRow {
 type SortKey = "velocidad" | "promedio" | "stockTotal" | "categoria" | "nombre" | "status" | string; // "w:2026-21"
 
 const catColor: Record<string, string> = {
-  A: "text-emerald-400", B: "text-[#3b82f6]", C: "text-yellow-400", D: "text-white/40",
+  A: "text-emerald-600", B: "text-blue-600", C: "text-amber-600", D: "text-slate-400",
 };
 
 const statusStyle: Record<string, string> = {
-  VERDE:     "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
-  AMARILLO:  "bg-yellow-500/10  text-yellow-400  border-yellow-500/20",
-  ROJO:      "bg-red-500/10     text-red-400     border-red-500/20",
-  SIN_STOCK: "bg-white/5        text-white/40    border-white/10",
+  VERDE:     "bg-emerald-50 text-emerald-700 border-emerald-200",
+  AMARILLO:  "bg-amber-50   text-amber-700   border-amber-200",
+  ROJO:      "bg-red-50     text-red-700     border-red-200",
+  SIN_STOCK: "bg-slate-100  text-slate-500   border-slate-200",
 };
 
 function fmt(n: number): string {
@@ -142,7 +142,7 @@ export default function VelocidadTable({ rows }: { rows: VelocidadRow[] }) {
     URL.revokeObjectURL(url);
   };
 
-  const th = "text-left px-3 py-2.5 text-white/30 font-medium uppercase tracking-wider whitespace-nowrap cursor-pointer hover:text-white/60 select-none";
+  const th = "text-left px-3 py-2.5 text-slate-400 font-medium uppercase tracking-wider whitespace-nowrap cursor-pointer hover:text-slate-700 select-none";
 
   // ── Gestión del filtro "Producto nuevo" (SKUs existentes del catálogo) ──
   const [addSku, setAddSku] = useState("");
@@ -176,47 +176,47 @@ export default function VelocidadTable({ rows }: { rows: VelocidadRow[] }) {
         <input
           type="text" placeholder="Buscar por nombre o SKU…"
           value={search} onChange={e => setSearch(e.target.value)}
-          className="bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-xs text-white placeholder-white/30 focus:outline-none focus:border-[#3b82f6]/50 w-64"
+          className="bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 w-64 shadow-sm"
         />
         <button onClick={() => setSoloNuevos(false)}
-          className={`text-xs px-3 py-2 rounded-lg border transition-colors ${!soloNuevos ? "bg-[#3b82f6]/20 text-[#3b82f6] border-[#3b82f6]/30" : "text-white/30 border-white/10 hover:border-white/20"}`}>
+          className={`text-xs px-3 py-2 rounded-lg border transition-colors ${!soloNuevos ? "bg-blue-50 text-blue-700 border-blue-200" : "bg-white text-slate-500 border-slate-200 hover:bg-slate-50"}`}>
           Todos
         </button>
         <button onClick={() => setSoloNuevos(true)}
-          className={`text-xs px-3 py-2 rounded-lg border transition-colors ${soloNuevos ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/30" : "text-white/30 border-white/10 hover:border-white/20"}`}>
+          className={`text-xs px-3 py-2 rounded-lg border transition-colors ${soloNuevos ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-white text-slate-500 border-slate-200 hover:bg-slate-50"}`}>
           ✨ Producto nuevo ({nuevosCount})
         </button>
-        <span className="text-xs text-white/20">{visible.length} productos</span>
+        <span className="text-xs text-slate-400">{visible.length} productos</span>
         <button onClick={exportCsv}
-          className="ml-auto text-xs bg-white/5 hover:bg-white/10 border border-white/10 text-white/60 px-3 py-2 rounded-lg transition-colors">
+          className="ml-auto text-xs bg-white hover:bg-slate-50 border border-slate-200 text-slate-600 px-3 py-2 rounded-lg transition-colors shadow-sm">
           ⭳ Exportar CSV
         </button>
       </div>
 
       {/* Gestión del filtro "Producto nuevo" — agregar un SKU existente */}
       {soloNuevos && (
-        <div className="rounded-xl border border-emerald-500/15 bg-emerald-500/[0.04] p-3 flex items-center gap-2 flex-wrap">
-          <span className="text-xs text-white/40">Agregar SKU existente al filtro:</span>
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 flex items-center gap-2 flex-wrap">
+          <span className="text-xs text-slate-500">Agregar SKU existente al filtro:</span>
           <input
             type="text" placeholder="SKU…" value={addSku}
             onChange={e => setAddSku(e.target.value.toUpperCase())}
             onKeyDown={e => { if (e.key === "Enter") agregarNuevo(); }}
-            className="bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white placeholder-white/30 focus:outline-none focus:border-emerald-500/50 w-48 font-mono"
+            className="bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-emerald-400 w-48 font-mono"
           />
           <button onClick={agregarNuevo} disabled={busy || !addSku.trim()}
             className="text-xs bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-white px-3 py-1.5 rounded-lg">
             {busy ? "…" : "Agregar"}
           </button>
-          {addMsg && <span className={`text-xs ${addMsg.ok ? "text-emerald-400" : "text-red-400"}`}>{addMsg.text}</span>}
-          <span className="text-white/20 text-[11px] ml-auto">Se agrega al final (orden de llegada).</span>
+          {addMsg && <span className={`text-xs ${addMsg.ok ? "text-emerald-700" : "text-red-600"}`}>{addMsg.text}</span>}
+          <span className="text-slate-400 text-[11px] ml-auto">Se agrega al final (orden de llegada).</span>
         </div>
       )}
 
-      <div className="rounded-xl border border-white/5 bg-[#111111] overflow-hidden">
+      <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-xs">
-            <thead>
-              <tr className="border-b border-white/5">
+            <thead className="bg-slate-50">
+              <tr className="border-b border-slate-200">
                 <th className={th} onClick={() => toggleSort("nombre")}>Producto{arrow("nombre")}</th>
                 <th className={th} onClick={() => toggleSort("categoria")}>Categoría{arrow("categoria")}</th>
                 <th className={th} onClick={() => toggleSort("velocidad")}>Velocidad Inicial{arrow("velocidad")}</th>
@@ -232,40 +232,40 @@ export default function VelocidadTable({ rows }: { rows: VelocidadRow[] }) {
               </tr>
             </thead>
             <tbody>
-              {visible.map((r, i) => (
-                <tr key={r.sku} className={`${i < visible.length - 1 ? "border-b border-white/5" : ""} hover:bg-white/[0.02]`}>
+              {visible.map((r) => (
+                <tr key={r.sku} className="border-b border-slate-100 last:border-0 hover:bg-slate-50">
                   <td className="px-3 py-2.5 max-w-[280px]">
                     <button onClick={() => setSelectedSku(r.sku)}
-                      className="font-mono text-[#3b82f6] hover:text-indigo-300 hover:underline underline-offset-2 cursor-pointer">
+                      className="font-mono text-blue-600 hover:text-blue-700 hover:underline underline-offset-2 cursor-pointer">
                       {r.sku}
                     </button>
-                    {r.asociaciones > 1 && <span className="text-white/30 ml-1">({r.asociaciones} productos)</span>}
+                    {r.asociaciones > 1 && <span className="text-slate-400 ml-1">({r.asociaciones} productos)</span>}
                     {soloNuevos && (
                       <button onClick={() => quitarNuevo(r.sku)} title="Quitar del filtro"
-                        className="ml-2 text-white/20 hover:text-red-400 text-xs">✕</button>
+                        className="ml-2 text-slate-300 hover:text-red-500 text-xs">✕</button>
                     )}
-                    <span className="block text-white/60 truncate">{r.nombre}</span>
+                    <span className="block text-slate-600 truncate">{r.nombre}</span>
                   </td>
-                  <td className={`px-3 py-2.5 font-semibold ${catColor[r.categoria] ?? "text-white/40"}`}>{r.categoria || "—"}</td>
-                  <td className="px-3 py-2.5 font-mono text-white/50">{fmt(inicialOf(r))}</td>
-                  <td className="px-3 py-2.5 font-mono text-white/80">{fmt(maduraOf(r))}</td>
+                  <td className={`px-3 py-2.5 font-semibold ${catColor[r.categoria] ?? "text-slate-400"}`}>{r.categoria || "—"}</td>
+                  <td className="px-3 py-2.5 font-mono text-slate-400">{fmt(inicialOf(r))}</td>
+                  <td className="px-3 py-2.5 font-mono text-slate-800 font-medium">{fmt(maduraOf(r))}</td>
                   {weekCols.map(w => {
                     const v = weekVal(r, w.year, w.number);
                     return <td key={`${w.year}-${w.number}`} className={`px-3 py-2.5 text-center font-mono ${weekColor(v, inicialOf(r), maduraOf(r))}`}>{v ? fmt(v) : "—"}</td>;
                   })}
-                  <td className="px-3 py-2.5 font-mono text-white/70">{fmt(r.promedio)}</td>
-                  <td className="px-3 py-2.5 font-mono text-white/50">{fmt(r.stockTotal)}</td>
+                  <td className="px-3 py-2.5 font-mono text-slate-600">{fmt(r.promedio)}</td>
+                  <td className="px-3 py-2.5 font-mono text-slate-400">{fmt(r.stockTotal)}</td>
                   {hasStatus && (
                     <td className="px-3 py-2.5">
                       <div className="flex items-center gap-2">
                         {listoSet.has(r.sku)
-                          ? <span className="border px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-500/15 text-emerald-300 border-emerald-500/30">Listo</span>
+                          ? <span className="border px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700 border-emerald-300">Listo</span>
                           : r.status
                             ? <span className={`border px-2 py-0.5 rounded-full text-xs font-medium ${statusStyle[r.status]}`}>{r.statusLabel}</span>
-                            : <span className="text-white/15">—</span>}
+                            : <span className="text-slate-300">—</span>}
                         <button onClick={() => toggleListo(r.sku)}
                           title={listoSet.has(r.sku) ? "Quitar Listo" : "Marcar Listo"}
-                          className={`w-5 h-5 rounded-full border flex items-center justify-center text-[11px] leading-none transition-colors ${listoSet.has(r.sku) ? "bg-emerald-500/30 text-emerald-300 border-emerald-500/50" : "border-white/15 text-white/25 hover:text-emerald-400 hover:border-emerald-500/40"}`}>
+                          className={`w-5 h-5 rounded-full border flex items-center justify-center text-[11px] leading-none transition-colors ${listoSet.has(r.sku) ? "bg-emerald-500 text-white border-emerald-500" : "border-slate-300 text-slate-300 hover:text-emerald-600 hover:border-emerald-400"}`}>
                           ✓
                         </button>
                       </div>
@@ -275,7 +275,7 @@ export default function VelocidadTable({ rows }: { rows: VelocidadRow[] }) {
               ))}
             </tbody>
           </table>
-          {visible.length === 0 && <div className="p-8 text-center text-white/20 text-sm">Sin resultados</div>}
+          {visible.length === 0 && <div className="p-8 text-center text-slate-400 text-sm">Sin resultados</div>}
         </div>
       </div>
     </div>

@@ -34,76 +34,73 @@ export default function DatosPage() {
   };
 
   return (
-    <div className="flex h-full min-h-screen bg-[#0a0a0a]">
+    <div className="flex h-full min-h-screen bg-slate-50">
       <Sidebar />
       <main className="flex-1 overflow-auto">
-        <div className="border-b border-white/5 px-8 py-4 sticky top-0 bg-[#0a0a0a]/90 backdrop-blur-sm z-10">
-          <h1 className="text-base font-semibold text-white">Datos / Sincronización</h1>
-          <p className="text-xs text-white/30 mt-0.5">ET Brands · 100% desde ProfitGuard</p>
+        <div className="border-b border-slate-200 px-8 py-4 sticky top-0 bg-white/90 backdrop-blur-sm z-10">
+          <h1 className="text-lg font-semibold text-slate-900">Datos / Sincronización</h1>
+          <p className="text-xs text-slate-400 mt-0.5">ET Brands · 100% desde ProfitGuard</p>
         </div>
 
         <div className="px-8 py-8 max-w-2xl mx-auto space-y-6">
           {/* Estado automático */}
-          <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-5 space-y-2">
+          <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-5 space-y-2">
             <div className="flex items-center gap-2">
-              <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
-              <p className="text-emerald-400 text-sm font-semibold">Sincronización automática activa</p>
+              <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+              <p className="text-emerald-700 text-sm font-semibold">Sincronización automática activa</p>
             </div>
-            <p className="text-white/40 text-xs leading-relaxed">
+            <p className="text-slate-500 text-xs leading-relaxed">
               Catálogo, stock y ACoS real se traen solos desde ProfitGuard con un cron diario.
               Sin carga manual de Excel.
             </p>
           </div>
 
           {/* Velocidades — bookmarklet de 1 clic */}
-          <div className="rounded-xl border border-[#3b82f6]/25 bg-[#3b82f6]/5 p-5 space-y-4">
+          <div className="rounded-xl border border-blue-200 bg-blue-50 p-5 space-y-4">
             <div>
-              <p className="text-[#3b82f6] text-sm font-semibold">⚡ Actualizar Velocidad de Ventas (1 clic)</p>
-              <p className="text-white/35 text-xs mt-1 leading-relaxed">
+              <p className="text-blue-700 text-sm font-semibold">⚡ Actualizar Velocidad de Ventas (1 clic)</p>
+              <p className="text-slate-500 text-xs mt-1 leading-relaxed">
                 Las velocidades, categoría ABC y semanas solo se leen con tu sesión de ProfitGuard.
-                Crea este bookmarklet una vez y haz clic cuando quieras refrescar (~30s).
+                Crea este bookmarklet una vez y haz clic cuando quieras refrescar.
               </p>
             </div>
 
             {/* Paso 1: secreto */}
             <div>
-              <label className="block text-white/40 text-[10px] uppercase tracking-wider mb-1">
+              <label className="block text-slate-500 text-[10px] uppercase tracking-wider mb-1">
                 1. Pega tu INGEST_SECRET (el de Vercel)
               </label>
               <input
                 type="password" value={secret} onChange={e => setSecret(e.target.value)}
                 placeholder="INGEST_SECRET"
-                className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-xs text-white placeholder-white/20 focus:outline-none focus:border-[#3b82f6]/50"
+                className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
               />
             </div>
 
             {/* Paso 2: copiar */}
             <div>
-              <label className="block text-white/40 text-[10px] uppercase tracking-wider mb-1">
+              <label className="block text-slate-500 text-[10px] uppercase tracking-wider mb-1">
                 2. Copia el bookmarklet y guárdalo como marcador
               </label>
               <button
                 onClick={copy} disabled={!secret.trim()}
-                className="w-full bg-[#3b82f6] hover:bg-[#3b82f6]/90 disabled:opacity-40 active:scale-[0.98] text-white text-sm font-semibold px-6 py-3 rounded-xl transition-all"
+                className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-40 active:scale-[0.98] text-white text-sm font-semibold px-6 py-3 rounded-xl transition-all shadow-sm"
               >
                 {copied ? "✓ Copiado — pégalo como URL de un marcador nuevo" : "Copiar bookmarklet"}
               </button>
             </div>
 
             {/* Paso 3 */}
-            <ol className="space-y-1.5 text-white/45 text-xs list-decimal list-inside">
+            <ol className="space-y-1.5 text-slate-500 text-xs list-decimal list-inside">
               <li>Crea un marcador nuevo en tu navegador y pega el bookmarklet como URL (nómbralo &quot;Sync Velocidades&quot;).</li>
-              <li>Inicia sesión en <code className="font-mono text-white/60">app.profitguard.cl</code>.</li>
+              <li>Inicia sesión en <code className="font-mono text-slate-700">app.profitguard.cl</code>.</li>
               <li>Estando ahí, haz clic en el marcador. Verás &quot;✓ Velocidad de Ventas actualizada&quot;.</li>
             </ol>
           </div>
 
-          <div className="flex gap-3">
-            <Link href="/velocidad" className="flex-1 text-center bg-[#3b82f6]/10 hover:bg-[#3b82f6]/20 border border-[#3b82f6]/30 text-[#3b82f6] text-sm font-medium px-6 py-3 rounded-xl transition-colors">
-              Ver Velocidad de Ventas →
-            </Link>
-            <Link href="/" className="flex-1 text-center bg-white/5 hover:bg-white/10 border border-white/10 text-white/70 text-sm font-medium px-6 py-3 rounded-xl transition-colors">
-              ← Dashboard
+          <div className="flex">
+            <Link href="/" className="flex-1 text-center bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-700 text-sm font-medium px-6 py-3 rounded-xl transition-colors">
+              ← Ver Velocidad de Ventas
             </Link>
           </div>
         </div>

@@ -76,23 +76,23 @@ export default async function HomePage() {
   const { rows, error } = await getData();
 
   return (
-    <div className="flex h-full min-h-screen bg-[#0a0a0a]">
+    <div className="flex h-full min-h-screen bg-slate-50">
       <Sidebar />
       <main className="flex-1 overflow-auto">
-        <div className="border-b border-white/5 px-8 py-4 flex items-center justify-between sticky top-0 bg-[#0a0a0a]/90 backdrop-blur-sm z-10">
+        <div className="border-b border-slate-200 px-8 py-4 flex items-center justify-between sticky top-0 bg-white/90 backdrop-blur-sm z-10">
           <div>
-            <h1 className="text-base font-semibold text-white">Velocidad de Ventas</h1>
-            <p className="text-xs text-white/30 mt-0.5">ET Brands · espejo de ProfitGuard + diagnóstico IA</p>
+            <h1 className="text-lg font-semibold text-slate-900">Velocidad de Ventas</h1>
+            <p className="text-xs text-slate-400 mt-0.5">ET Brands · espejo de ProfitGuard + diagnóstico IA</p>
           </div>
           {error && (
-            <span className="text-xs text-red-400 bg-red-500/10 border border-red-500/20 px-3 py-1.5 rounded-full">⚠ Sin conexión DB</span>
+            <span className="text-xs text-red-600 bg-red-50 border border-red-200 px-3 py-1.5 rounded-full">⚠ Sin conexión DB</span>
           )}
         </div>
 
         <div className="px-8 py-6 space-y-6">
           {/* Tabla de Velocidad de Ventas (con semáforo + detalle al clic) */}
           {rows.length === 0 && !error ? (
-            <div className="rounded-xl border border-white/5 bg-[#111111] p-10 text-center text-white/40 text-sm">
+            <div className="rounded-xl border border-slate-200 bg-white p-10 text-center text-slate-400 text-sm">
               Aún no hay datos de velocidad. Corre el sync de navegador (página Datos / Sync).
             </div>
           ) : (
