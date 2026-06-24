@@ -1,5 +1,6 @@
 "use client";
 import { useMemo, useState } from "react";
+import SkuDetailModal from "./SkuDetailModal";
 
 export interface Tarea {
   id: string; tipoPalanca: string; fecha: string; comentario: string | null;
@@ -13,6 +14,7 @@ function fmtDate(iso: string): string {
 export default function TareasList({ tareas }: { tareas: Tarea[] }) {
   const [hechas, setHechas] = useState<Set<string>>(() => new Set(tareas.filter(t => t.implementado).map(t => t.id)));
   const [ocultar, setOcultar] = useState(false);
+  const [selectedSku, setSelectedSku] = useState<string | null>(null);
 
   const toggle = async (t: Tarea) => {
     const nuevo = !hechas.has(t.id);
@@ -38,6 +40,7 @@ export default function TareasList({ tareas }: { tareas: Tarea[] }) {
 
   return (
     <div className="space-y-5">
+      {selectedSku && <SkuDetailModal sku={selectedSku} onClose={() => setSelectedSku(null)} />}
       <div className="flex items-center gap-3 text-xs">
         <span className="text-slate-500">{pendientes} pendientes · {hechas.size} implementadas</span>
         <button onClick={() => setOcultar(o => !o)}
@@ -59,7 +62,10 @@ export default function TareasList({ tareas }: { tareas: Tarea[] }) {
                 <li key={t.id} className={`px-5 py-3 flex items-start justify-between gap-4 ${done ? "bg-emerald-50/60" : ""}`}>
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-mono text-orange-600 text-sm">{t.sku}</span>
+                      <button onClick={() => setSelectedSku(t.sku)}
+                        className="font-mono text-orange-600 hover:text-orange-700 hover:underline underline-offset-2 text-sm cursor-pointer">
+                        {t.sku}
+                      </button>
                       <span className="text-slate-300 text-xs">·</span>
                       <span className="text-slate-400 text-xs">{fmtDate(t.fecha)}</span>
                     </div>
