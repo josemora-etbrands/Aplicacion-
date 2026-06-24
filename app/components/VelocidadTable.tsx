@@ -142,7 +142,7 @@ export default function VelocidadTable({ rows }: { rows: VelocidadRow[] }) {
     URL.revokeObjectURL(url);
   };
 
-  const th = "text-left px-3 py-2.5 text-slate-400 font-medium uppercase tracking-wider whitespace-nowrap cursor-pointer hover:text-slate-700 select-none";
+  const th = "text-left px-3 py-2.5 text-slate-400 font-medium uppercase tracking-wider whitespace-nowrap cursor-pointer hover:text-slate-700 select-none bg-slate-50";
 
   // ── Gestión del filtro "Producto nuevo" (SKUs existentes del catálogo) ──
   const [addSku, setAddSku] = useState("");
@@ -213,9 +213,9 @@ export default function VelocidadTable({ rows }: { rows: VelocidadRow[] }) {
       )}
 
       <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
+        <div className="overflow-auto max-h-[calc(100vh-210px)]">
           <table className="w-full text-xs">
-            <thead className="bg-slate-50">
+            <thead className="bg-slate-50 sticky top-0 z-10">
               <tr className="border-b border-slate-200">
                 <th className={th} onClick={() => toggleSort("nombre")}>Producto{arrow("nombre")}</th>
                 <th className={th} onClick={() => toggleSort("categoria")}>Categoría{arrow("categoria")}</th>
